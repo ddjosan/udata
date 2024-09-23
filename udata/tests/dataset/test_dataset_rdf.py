@@ -1,40 +1,58 @@
-import pytest
-import requests
-
 from datetime import date
 from xml.etree.ElementTree import XML
 
+import pytest
+import requests
 from flask import url_for
-
-from rdflib import Graph, URIRef, Literal, BNode
-from rdflib.namespace import RDF
+from rdflib import BNode, Graph, Literal, URIRef
+from rdflib.namespace import FOAF, RDF
 from rdflib.resource import Resource as RdfResource
 
-from udata.models import db
-from udata.core.dataset.models import Dataset, Resource, License, Checksum
-from udata.core.dataset.factories import (
-    DatasetFactory, ResourceFactory, LicenseFactory
+from udata.core.dataset.factories import DatasetFactory, LicenseFactory, ResourceFactory
+from udata.core.dataset.models import (
+    Checksum,
+    Dataset,
+    HarvestDatasetMetadata,
+    License,
+    Resource,
 )
 from udata.core.dataset.rdf import (
-    dataset_to_rdf, dataset_from_rdf, resource_to_rdf, resource_from_rdf,
-    temporal_from_rdf, frequency_to_rdf, frequency_from_rdf,
-    EU_RDF_REQUENCIES
+    EU_RDF_REQUENCIES,
+    dataset_from_rdf,
+    dataset_to_rdf,
+    frequency_from_rdf,
+    frequency_to_rdf,
+    resource_from_rdf,
+    resource_to_rdf,
+    temporal_from_rdf,
 )
-from udata.rdf import DCAT, DCT, FREQ, SPDX, SCHEMA, SKOS
-from udata.utils import faker
+from udata.core.organization.factories import OrganizationFactory
+from udata.i18n import gettext as _
+from udata.mongo import db
+from udata.rdf import (
+    DCAT,
+    DCATAP,
+    DCT,
+    FREQ,
+    HVD_LEGISLATION,
+    SCHEMA,
+    SKOS,
+    SPDX,
+    TAG_TO_EU_HVD_CATEGORIES,
+)
 from udata.tests.helpers import assert200, assert_redirects
+from udata.utils import faker
 
-
-pytestmark = pytest.mark.usefixtures('app')
+pytestmark = pytest.mark.usefixtures("app")
 
 FREQ_SAMPLE = [
-    (FREQ.annual, 'annual'),
-    (FREQ.monthly, 'monthly'),
-    (FREQ.daily, 'daily'),
-    (FREQ.continuous, 'continuous'),
+    (FREQ.annual, "annual"),
+    (FREQ.monthly, "monthly"),
+    (FREQ.daily, "daily"),
+    (FREQ.continuous, "continuous"),
 ]
 
-GOV_UK_REF = 'http://reference.data.gov.uk/id/year/2017'
+GOV_UK_REF = "http://reference.data.gov.uk/id/year/2017"
 
 try:
     requests.head(GOV_UK_REF, timeout=0.1)
@@ -46,14 +64,13 @@ else:
 
 @pytest.mark.frontend
 class DatasetToRdfTest:
-
     def test_minimal(self):
         dataset = DatasetFactory.build()  # Does not have an URL
         d = dataset_to_rdf(dataset)
         g = d.graph
 
         assert isinstance(d, RdfResource)
-        assert len(list(g.subjects(RDF.type, DCAT.Dataset))) is 1
+        assert len(list(g.subjects(RDF.type, DCAT.Dataset))) == 1
 
         assert g.value(d.identifier, RDF.type) == DCAT.Dataset
 
@@ -65,19 +82,24 @@ class DatasetToRdfTest:
 
     def test_all_dataset_fields(self):
         resources = ResourceFactory.build_batch(3)
-        dataset = DatasetFactory(tags=faker.words(nb=3), resources=resources,
-                                 frequency='daily', acronym='acro')
+        org = OrganizationFactory(name="organization")
+        dataset = DatasetFactory(
+            tags=faker.words(nb=3),
+            resources=resources,
+            frequency="daily",
+            acronym="acro",
+            organization=org,
+        )
         d = dataset_to_rdf(dataset)
         g = d.graph
 
         assert isinstance(d, RdfResource)
-        assert len(list(g.subjects(RDF.type, DCAT.Dataset))) is 1
+        assert len(list(g.subjects(RDF.type, DCAT.Dataset))) == 1
 
         assert g.value(d.identifier, RDF.type) == DCAT.Dataset
 
         assert isinstance(d.identifier, URIRef)
-        uri = url_for('api.dataset',
-                      dataset=dataset.id, _external=True)
+        uri = url_for("api.dataset", dataset=dataset.id, _external=True)
         assert str(d.identifier) == uri
         assert d.value(DCT.identifier) == Literal(dataset.id)
         assert d.value(DCT.title) == Literal(dataset.title)
@@ -89,20 +111,23 @@ class DatasetToRdfTest:
         expected_tags = set(Literal(t) for t in dataset.tags)
         assert set(d.objects(DCAT.keyword)) == expected_tags
         assert len(list(d.objects(DCAT.distribution))) == len(resources)
+        org = d.value(DCT.publisher)
+        assert org.value(RDF.type).identifier == FOAF.Organization
+        assert org.value(FOAF.name) == Literal("organization")
 
     def test_map_unkownn_frequencies(self):
-        assert frequency_to_rdf('hourly') == FREQ.continuous
+        assert frequency_to_rdf("hourly") == FREQ.continuous
 
-        assert frequency_to_rdf('fourTimesADay') == FREQ.daily
-        assert frequency_to_rdf('threeTimesADay') == FREQ.daily
-        assert frequency_to_rdf('semidaily') == FREQ.daily
+        assert frequency_to_rdf("fourTimesADay") == FREQ.daily
+        assert frequency_to_rdf("threeTimesADay") == FREQ.daily
+        assert frequency_to_rdf("semidaily") == FREQ.daily
 
-        assert frequency_to_rdf('fourTimesAWeek') == FREQ.threeTimesAWeek
+        assert frequency_to_rdf("fourTimesAWeek") == FREQ.threeTimesAWeek
 
-        assert frequency_to_rdf('punctual') is None
-        assert frequency_to_rdf('unknown') is None
+        assert frequency_to_rdf("punctual") is None
+        assert frequency_to_rdf("unknown") is None
 
-        assert frequency_to_rdf('quinquennial') is None  # Better idea ?
+        assert frequency_to_rdf("quinquennial") is None  # Better idea ?
 
     def test_minimal_resource_fields(self):
         resource = ResourceFactory()
@@ -117,41 +142,37 @@ class DatasetToRdfTest:
         assert graph.value(r.identifier, RDF.type) == DCAT.Distribution
         assert r.value(DCT.title) == Literal(resource.title)
         assert r.value(DCAT.downloadURL).identifier == URIRef(resource.url)
-        assert r.value(DCT.issued) == Literal(resource.published)
-        assert r.value(DCT.modified) == Literal(resource.modified)
+        assert r.value(DCT.issued) == Literal(resource.created_at)
+        assert r.value(DCT.modified) == Literal(resource.last_modified)
 
     def test_all_resource_fields(self):
         license = LicenseFactory()
-        resource = ResourceFactory(format='csv')
+        resource = ResourceFactory(format="csv")
         dataset = DatasetFactory(resources=[resource], license=license)
-        permalink = url_for('api.resource_redirect',
-                            id=resource.id,
-                            _external=True)
+        permalink = url_for("api.resource_redirect", id=resource.id, _external=True)
 
         r = resource_to_rdf(resource, dataset)
 
         assert r.value(DCT.title) == Literal(resource.title)
         assert r.value(DCT.description) == Literal(resource.description)
-        assert r.value(DCT.issued) == Literal(resource.published)
-        assert r.value(DCT.modified) == Literal(resource.modified)
+        assert r.value(DCT.issued) == Literal(resource.created_at)
+        assert r.value(DCT.modified) == Literal(resource.last_modified)
         assert r.value(DCT.license).identifier == URIRef(license.url)
         assert r.value(DCT.rights) == Literal(license.title)
         assert r.value(DCAT.downloadURL).identifier == URIRef(resource.url)
         assert r.value(DCAT.accessURL).identifier == URIRef(permalink)
-        assert r.value(DCAT.bytesSize) == Literal(resource.filesize)
+        assert r.value(DCAT.byteSize) == Literal(resource.filesize)
         assert r.value(DCAT.mediaType) == Literal(resource.mime)
         assert r.value(DCT.format) == Literal(resource.format)
 
         checksum = r.value(SPDX.checksum)
         assert r.graph.value(checksum.identifier, RDF.type) == SPDX.Checksum
-        assert (r.graph.value(checksum.identifier, SPDX.algorithm)
-                == SPDX.checksumAlgorithm_sha1)
-        assert (checksum.value(SPDX.checksumValue)
-                == Literal(resource.checksum.value))
+        assert r.graph.value(checksum.identifier, SPDX.algorithm) == SPDX.checksumAlgorithm_sha1
+        assert checksum.value(SPDX.checksumValue) == Literal(resource.checksum.value)
 
     def test_temporal_coverage(self):
-        start = faker.past_date(start_date='-30d')
-        end = faker.future_date(end_date='+30d')
+        start = faker.past_date(start_date="-30d")
+        end = faker.future_date(end_date="+30d")
         temporal_coverage = db.DateRange(start=start, end=end)
         dataset = DatasetFactory(temporal_coverage=temporal_coverage)
 
@@ -160,23 +181,38 @@ class DatasetToRdfTest:
         pot = d.value(DCT.temporal)
 
         assert pot.value(RDF.type).identifier == DCT.PeriodOfTime
-        assert pot.value(SCHEMA.startDate).toPython() == start
-        assert pot.value(SCHEMA.endDate).toPython() == end
+        assert pot.value(DCAT.startDate).toPython() == start
+        assert pot.value(DCAT.endDate).toPython() == end
 
     def test_from_external_repository(self):
-        dataset = DatasetFactory(extras={
-            'dct:identifier': 'an-identifier',
-            'uri': 'https://somewhere.org/dataset',
-        })
+        dataset = DatasetFactory(
+            harvest=HarvestDatasetMetadata(
+                dct_identifier="an-identifier", uri="https://somewhere.org/dataset"
+            )
+        )
 
         d = dataset_to_rdf(dataset)
 
         assert isinstance(d.identifier, URIRef)
-        assert str(d.identifier) == 'https://somewhere.org/dataset'
-        assert d.value(DCT.identifier) == Literal('an-identifier')
+        assert str(d.identifier) == "https://somewhere.org/dataset"
+        assert d.value(DCT.identifier) == Literal("an-identifier")
+
+    def test_hvd_dataset(self):
+        """Test that a dataset tagged hvd has appropriate DCAT-AP HVD properties"""
+        dataset = DatasetFactory(
+            resources=ResourceFactory.build_batch(3), tags=["hvd", "mobilite", "test"]
+        )
+        d = dataset_to_rdf(dataset)
+
+        assert d.value(DCATAP.applicableLegislation).identifier == URIRef(HVD_LEGISLATION)
+        assert d.value(DCATAP.hvdCategory).identifier == URIRef(
+            TAG_TO_EU_HVD_CATEGORIES["mobilite"]
+        )
+        for distrib in d.objects(DCAT.distribution):
+            assert distrib.value(DCATAP.applicableLegislation).identifier == URIRef(HVD_LEGISLATION)
 
 
-@pytest.mark.usefixtures('clean_db')
+@pytest.mark.usefixtures("clean_db")
 class RdfToDatasetTest:
     def test_minimal(self):
         node = BNode()
@@ -195,7 +231,7 @@ class RdfToDatasetTest:
     def test_update(self):
         original = DatasetFactory()
 
-        node = URIRef('https://test.org/dataset')
+        node = URIRef("https://test.org/dataset")
         g = Graph()
 
         new_title = faker.sentence()
@@ -231,7 +267,7 @@ class RdfToDatasetTest:
     def test_update_from_multiple(self):
         original = DatasetFactory()
 
-        node = URIRef('https://test.org/dataset')
+        node = URIRef("https://test.org/dataset")
         g = Graph()
 
         new_title = faker.sentence()
@@ -251,7 +287,7 @@ class RdfToDatasetTest:
         assert dataset.title == new_title
 
     def test_all_fields(self):
-        uri = 'https://test.org/dataset'
+        uri = "https://test.org/dataset"
         node = URIRef(uri)
         g = Graph()
 
@@ -260,8 +296,8 @@ class RdfToDatasetTest:
         acronym = faker.word()
         description = faker.paragraph()
         tags = faker.words(nb=3)
-        start = faker.past_date(start_date='-30d')
-        end = faker.future_date(end_date='+30d')
+        start = faker.past_date(start_date="-30d")
+        end = faker.future_date(end_date="+30d")
         g.set((node, RDF.type, DCAT.Dataset))
         g.set((node, DCT.identifier, Literal(id)))
         g.set((node, DCT.title, Literal(title)))
@@ -271,8 +307,8 @@ class RdfToDatasetTest:
         pot = BNode()
         g.add((node, DCT.temporal, pot))
         g.set((pot, RDF.type, DCT.PeriodOfTime))
-        g.set((pot, SCHEMA.startDate, Literal(start)))
-        g.set((pot, SCHEMA.endDate, Literal(end)))
+        g.set((pot, DCAT.startDate, Literal(start)))
+        g.set((pot, DCAT.endDate, Literal(end)))
         for tag in tags:
             g.add((node, DCAT.keyword, Literal(tag)))
 
@@ -283,17 +319,14 @@ class RdfToDatasetTest:
         assert dataset.title == title
         assert dataset.acronym == acronym
         assert dataset.description == description
-        assert dataset.frequency == 'daily'
+        assert dataset.frequency == "daily"
         assert set(dataset.tags) == set(tags)
         assert isinstance(dataset.temporal_coverage, db.DateRange)
         assert dataset.temporal_coverage.start == start
         assert dataset.temporal_coverage.end == end
 
-        extras = dataset.extras
-        assert 'dct:identifier' in extras
-        assert extras['dct:identifier'] == id
-        assert 'uri' in extras
-        assert extras['uri'] == uri
+        assert dataset.harvest.dct_identifier == id
+        assert dataset.harvest.uri == uri
 
     def test_html_description(self):
         node = BNode()
@@ -302,13 +335,13 @@ class RdfToDatasetTest:
         g.add((node, RDF.type, DCAT.Dataset))
         g.add((node, DCT.identifier, Literal(faker.uuid4())))
         g.add((node, DCT.title, Literal(faker.sentence())))
-        g.add((node, DCT.description, Literal('<div>a description</div>')))
+        g.add((node, DCT.description, Literal("<div>a description</div>")))
 
         dataset = dataset_from_rdf(g)
         dataset.validate()
 
         assert isinstance(dataset, Dataset)
-        assert dataset.description == 'a description'
+        assert dataset.description == "a description"
 
     def test_theme_and_tags(self):
         node = BNode()
@@ -329,31 +362,31 @@ class RdfToDatasetTest:
         assert isinstance(dataset, Dataset)
         assert set(dataset.tags) == set(tags + themes)
 
-    @pytest.mark.parametrize('freq,expected', FREQ_SAMPLE)
+    @pytest.mark.parametrize("freq,expected", FREQ_SAMPLE)
     def test_parse_dublin_core_frequencies(self, freq, expected):
         assert frequency_from_rdf(freq) == expected
 
-    @pytest.mark.parametrize('freq,expected', FREQ_SAMPLE)
+    @pytest.mark.parametrize("freq,expected", FREQ_SAMPLE)
     def test_parse_dublin_core_frequencies_as_resource(self, freq, expected):
         g = Graph()
         resource = RdfResource(g, freq)
         assert frequency_from_rdf(resource) == expected
 
-    @pytest.mark.parametrize('freq,expected', FREQ_SAMPLE)
+    @pytest.mark.parametrize("freq,expected", FREQ_SAMPLE)
     def test_parse_dublin_core_frequencies_as_url(self, freq, expected):
         assert frequency_from_rdf(str(freq)) == expected
 
-    @pytest.mark.parametrize('freq,expected', EU_RDF_REQUENCIES.items())
+    @pytest.mark.parametrize("freq,expected", EU_RDF_REQUENCIES.items())
     def test_parse_european_frequencies(self, freq, expected):
         assert frequency_from_rdf(freq) == expected
 
-    @pytest.mark.parametrize('freq,expected', EU_RDF_REQUENCIES.items())
+    @pytest.mark.parametrize("freq,expected", EU_RDF_REQUENCIES.items())
     def test_parse_european_frequencies_as_resource(self, freq, expected):
         g = Graph()
         resource = RdfResource(g, freq)
         assert frequency_from_rdf(resource) == expected
 
-    @pytest.mark.parametrize('freq,expected', EU_RDF_REQUENCIES.items())
+    @pytest.mark.parametrize("freq,expected", EU_RDF_REQUENCIES.items())
     def test_parse_european_frequencies_as_url(self, freq, expected):
         assert frequency_from_rdf(str(freq)) == expected
 
@@ -382,8 +415,8 @@ class RdfToDatasetTest:
         url = faker.uri()
         description = faker.paragraph()
         filesize = faker.pyint()
-        issued = faker.date_time_between(start_date='-60d', end_date='-30d')
-        modified = faker.past_datetime(start_date='-30d')
+        issued = faker.date_time_between(start_date="-60d", end_date="-30d")
+        modified = faker.past_datetime(start_date="-30d")
         mime = faker.mime_type()
         sha1 = faker.sha1()
 
@@ -393,9 +426,9 @@ class RdfToDatasetTest:
         g.add((node, DCAT.downloadURL, Literal(url)))
         g.add((node, DCT.issued, Literal(issued)))
         g.add((node, DCT.modified, Literal(modified)))
-        g.add((node, DCAT.bytesSize, Literal(filesize)))
+        g.add((node, DCAT.byteSize, Literal(filesize)))
         g.add((node, DCAT.mediaType, Literal(mime)))
-        g.add((node, DCT.format, Literal('CSV')))
+        g.add((node, DCT.format, Literal("CSV")))
 
         checksum = BNode()
         g.add((node, SPDX.checksum, checksum))
@@ -413,11 +446,11 @@ class RdfToDatasetTest:
         assert resource.filesize == filesize
         assert resource.mime == mime
         assert isinstance(resource.checksum, Checksum)
-        assert resource.checksum.type == 'sha1'
+        assert resource.checksum.type == "sha1"
         assert resource.checksum.value == sha1
-        assert resource.published == issued
-        assert resource.modified == modified
-        assert resource.format == 'csv'
+        assert resource.harvest.created_at.date() == issued.date()
+        assert resource.harvest.modified_at.date() == modified.date()
+        assert resource.format == "csv"
 
     def test_download_url_over_access_url(self):
         node = BNode()
@@ -444,7 +477,7 @@ class RdfToDatasetTest:
         g = Graph()
 
         description = faker.paragraph()
-        html_description = '<div>{0}</div>'.format(description)
+        html_description = "<div>{0}</div>".format(description)
         g.add((node, RDF.type, DCAT.Distribution))
         g.add((node, DCT.title, Literal(faker.sentence())))
         g.add((node, DCT.description, Literal(html_description)))
@@ -458,7 +491,7 @@ class RdfToDatasetTest:
     def test_resource_title_from_url(self):
         node = BNode()
         g = Graph()
-        url = 'https://www.somewhere.com/somefile.csv'
+        url = "https://www.somewhere.com/somefile.csv"
 
         g.set((node, RDF.type, DCAT.Distribution))
         g.set((node, DCAT.downloadURL, URIRef(url)))
@@ -466,26 +499,26 @@ class RdfToDatasetTest:
         resource = resource_from_rdf(g)
         resource.validate()
 
-        assert resource.title == 'somefile.csv'
+        assert resource.title == "somefile.csv"
 
     def test_resource_title_from_format(self):
         node = BNode()
         g = Graph()
-        url = 'https://www.somewhere.com/no-extension/'
+        url = "https://www.somewhere.com/no-extension/"
 
         g.set((node, RDF.type, DCAT.Distribution))
         g.set((node, DCAT.downloadURL, URIRef(url)))
-        g.set((node, DCT.format, Literal('CSV')))
+        g.set((node, DCT.format, Literal("CSV")))
 
         resource = resource_from_rdf(g)
         resource.validate()
 
-        assert resource.title == 'csv resource'
+        assert resource.title == _("{format} resource").format(format="csv")
 
     def test_resource_generic_title(self):
         node = BNode()
         g = Graph()
-        url = 'https://www.somewhere.com/no-extension/'
+        url = "https://www.somewhere.com/no-extension/"
 
         g.set((node, RDF.type, DCAT.Distribution))
         g.set((node, DCAT.downloadURL, URIRef(url)))
@@ -493,12 +526,12 @@ class RdfToDatasetTest:
         resource = resource_from_rdf(g)
         resource.validate()
 
-        assert resource.title == 'Nameless resource'
+        assert resource.title == _("Nameless resource")
 
     def test_resource_title_ignore_dynamic_url(self):
         node = BNode()
         g = Graph()
-        url = 'https://www.somewhere.com/endpoint.json?param=value'
+        url = "https://www.somewhere.com/endpoint.json?param=value"
 
         g.set((node, RDF.type, DCAT.Distribution))
         g.set((node, DCAT.downloadURL, URIRef(url)))
@@ -506,7 +539,7 @@ class RdfToDatasetTest:
         resource = resource_from_rdf(g)
         resource.validate()
 
-        assert resource.title == 'Nameless resource'
+        assert resource.title == _("Nameless resource")
 
     def test_match_existing_resource_by_url(self):
         dataset = DatasetFactory(resources=ResourceFactory.build_batch(3))
@@ -562,7 +595,7 @@ class RdfToDatasetTest:
         assert len(dataset.resources) == 3
 
     def test_dataset_has_resources_from_buggy_plural_distribution(self):
-        '''Try to extract resources from the wrong distributions attribute'''
+        """Try to extract resources from the wrong distributions attribute"""
         node = BNode()
         g = Graph()
 
@@ -675,8 +708,8 @@ class RdfToDatasetTest:
     def test_parse_temporal_as_schema_format(self):
         node = BNode()
         g = Graph()
-        start = faker.past_date(start_date='-30d')
-        end = faker.future_date(end_date='+30d')
+        start = faker.past_date(start_date="-30d")
+        end = faker.future_date(end_date="+30d")
 
         g.set((node, RDF.type, DCT.PeriodOfTime))
         g.set((node, SCHEMA.startDate, Literal(start)))
@@ -689,10 +722,10 @@ class RdfToDatasetTest:
         assert daterange.end == end
 
     def test_parse_temporal_as_iso_interval(self):
-        start = faker.past_date(start_date='-30d')
-        end = faker.future_date(end_date='+30d')
+        start = faker.past_date(start_date="-30d")
+        end = faker.future_date(end_date="+30d")
 
-        pot = Literal('{0}/{1}'.format(start.isoformat(), end.isoformat()))
+        pot = Literal("{0}/{1}".format(start.isoformat(), end.isoformat()))
 
         daterange = temporal_from_rdf(pot)
 
@@ -701,7 +734,7 @@ class RdfToDatasetTest:
         assert daterange.end == end
 
     def test_parse_temporal_as_iso_year(self):
-        pot = Literal('2017')
+        pot = Literal("2017")
 
         daterange = temporal_from_rdf(pot)
 
@@ -710,7 +743,7 @@ class RdfToDatasetTest:
         assert daterange.end, date(2017, 12 == 31)
 
     def test_parse_temporal_as_iso_month(self):
-        pot = Literal('2017-06')
+        pot = Literal("2017-06")
 
         daterange = temporal_from_rdf(pot)
 
@@ -718,10 +751,9 @@ class RdfToDatasetTest:
         assert daterange.start, date(2017, 6 == 1)
         assert daterange.end, date(2017, 6 == 30)
 
-    @pytest.mark.skipif(not GOV_UK_REF_IS_UP,
-                        reason='Gov.uk references is unreachable')
+    @pytest.mark.skipif(not GOV_UK_REF_IS_UP, reason="Gov.uk references is unreachable")
     def test_parse_temporal_as_gov_uk_format(self):
-        node = URIRef('http://reference.data.gov.uk/id/year/2017')
+        node = URIRef("http://reference.data.gov.uk/id/year/2017")
         g = Graph()
 
         g.set((node, RDF.type, DCT.PeriodOfTime))
@@ -733,18 +765,18 @@ class RdfToDatasetTest:
         assert daterange.end, date(2017, 12 == 31)
 
     def test_parse_temporal_is_failsafe(self):
-        node = URIRef('http://nowhere.org')
+        node = URIRef("http://nowhere.org")
         g = Graph()
 
         g.set((node, RDF.type, DCT.PeriodOfTime))
 
         assert temporal_from_rdf(g.resource(node)) is None
-        assert temporal_from_rdf(Literal('unparseable')) is None
+        assert temporal_from_rdf(Literal("unparseable")) is None
 
     def test_unicode(self):
         g = Graph()
-        title = 'ééé'
-        description = 'éééé'
+        title = "ééé"
+        description = "éééé"
 
         node = BNode()
         g.add((node, RDF.type, DCAT.Dataset))
@@ -770,53 +802,53 @@ class RdfToDatasetTest:
 
 @pytest.mark.frontend
 class DatasetRdfViewsTest:
-
     def test_rdf_default_to_jsonld(self, client):
         dataset = DatasetFactory()
-        expected = url_for('api.dataset_rdf_format',
-                           dataset=dataset.id, format='json')
-        response = client.get(url_for('api.dataset_rdf', dataset=dataset))
+        expected = url_for("api.dataset_rdf_format", dataset=dataset.id, format="json")
+        response = client.get(url_for("api.dataset_rdf", dataset=dataset))
         assert_redirects(response, expected)
 
     def test_rdf_perform_content_negociation(self, client):
         dataset = DatasetFactory()
-        expected = url_for('api.dataset_rdf_format',
-                           dataset=dataset.id, format='xml')
-        url = url_for('api.dataset_rdf', dataset=dataset)
-        headers = {'accept': 'application/xml'}
+        expected = url_for("api.dataset_rdf_format", dataset=dataset.id, format="xml")
+        url = url_for("api.dataset_rdf", dataset=dataset)
+        headers = {"accept": "application/xml"}
         response = client.get(url, headers=headers)
         assert_redirects(response, expected)
 
     def test_rdf_perform_content_negociation_response(self, client):
-        '''Check we have valid XML as output'''
+        """Check we have valid XML as output"""
         dataset = DatasetFactory()
-        url = url_for('api.dataset_rdf', dataset=dataset)
-        headers = {'accept': 'application/xml'}
+        url = url_for("api.dataset_rdf", dataset=dataset)
+        headers = {"accept": "application/xml"}
         response = client.get(url, headers=headers, follow_redirects=True)
         element = XML(response.data)
-        assert element.tag == '{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF'
+        assert element.tag == "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF"
 
     def test_dataset_rdf_json_ld(self, client):
         dataset = DatasetFactory()
-        for fmt in 'json', 'jsonld':
-            url = url_for('api.dataset_rdf_format', dataset=dataset, format=fmt)
-            response = client.get(url, headers={'Accept': 'application/ld+json'})
+        for fmt in "json", "jsonld":
+            url = url_for("api.dataset_rdf_format", dataset=dataset, format=fmt)
+            response = client.get(url, headers={"Accept": "application/ld+json"})
             assert200(response)
-            assert response.content_type == 'application/ld+json'
-            assert response.json['@context']['@vocab'] == 'http://www.w3.org/ns/dcat#'
+            assert response.content_type == "application/ld+json"
+            assert response.json["@context"]["@vocab"] == "http://www.w3.org/ns/dcat#"
 
-    @pytest.mark.parametrize('fmt,mime', [
-        ('n3', 'text/n3'),
-        ('nt', 'application/n-triples'),
-        ('ttl', 'application/x-turtle'),
-        ('xml', 'application/rdf+xml'),
-        ('rdf', 'application/rdf+xml'),
-        ('owl', 'application/rdf+xml'),
-        ('trig', 'application/trig'),
-    ])
+    @pytest.mark.parametrize(
+        "fmt,mime",
+        [
+            ("n3", "text/n3"),
+            ("nt", "application/n-triples"),
+            ("ttl", "application/x-turtle"),
+            ("xml", "application/rdf+xml"),
+            ("rdf", "application/rdf+xml"),
+            ("owl", "application/rdf+xml"),
+            ("trig", "application/trig"),
+        ],
+    )
     def test_dataset_rdf_formats(self, client, fmt, mime):
         dataset = DatasetFactory()
-        url = url_for('api.dataset_rdf_format', dataset=dataset, format=fmt)
-        response = client.get(url, headers={'Accept': mime})
+        url = url_for("api.dataset_rdf_format", dataset=dataset, format=fmt)
+        response = client.get(url, headers={"Accept": mime})
         assert200(response)
         assert response.content_type == mime

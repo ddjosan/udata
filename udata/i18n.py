@@ -1,25 +1,23 @@
-import pkgutil
-
+import importlib.util
 from contextlib import contextmanager
-from os.path import exists, join, dirname, basename
+from datetime import datetime
 from glob import iglob
+from os.path import basename, dirname, join
 
+import flask_babel
+from babel.dates import format_timedelta as babel_format_timedelta
 from flask import (  # noqa
-    g, request, current_app, abort, redirect, url_for, has_request_context
+    abort,
+    current_app,
+    g,
+    has_request_context,
+    redirect,
+    request,
+    url_for,
 )
 from flask.blueprints import BlueprintSetupState, _endpoint_from_view_func
-try:
-    from flask import _app_ctx_stack as stack
-except ImportError:
-    from flask import _request_ctx_stack as stack
-
-
-from babel.support import NullTranslations, Translations
-
-from flask_babelex import Babel, Domain, refresh
-from flask_babelex import format_date, format_datetime  # noqa
-from flask_babelex import get_locale as get_current_locale  # noqa
-
+from flask_babel import Babel, format_date, format_datetime, refresh  # noqa
+from flask_babel import get_locale as get_current_locale  # noqa
 from werkzeug.local import LocalProxy
 
 from udata import entrypoints
@@ -29,102 +27,87 @@ from udata.errors import ConfigError
 from udata.utils import multi_to_dict
 
 
-class PluggableDomain(Domain):
-    def get_translations(self):
-        """Returns the correct gettext translations that should be used for
-        this request.  This will never fail and return a dummy translation
-        object if used outside of the request or if a translation cannot be
-        found.
-        """
-        ctx = stack.top
-        if ctx is None:
-            return NullTranslations()
+def get_translation_directories_and_domains():
+    translations_dir = []
+    domains = []
 
-        locale = get_locale()
+    # udata and plugin translations
+    for pkg in entrypoints.get_roots(current_app):
+        spec = importlib.util.find_spec(pkg)
+        path = dirname(spec.origin)
+        plugin_domains = [
+            f.replace(path, "").replace(".pot", "")[1:]
+            for f in iglob(join(path, "**/translations/*.pot"), recursive=True)
+        ]
+        for domain in plugin_domains:
+            translations_dir.append(join(path, dirname(domain)))
+            domains.append(basename(domain))
 
-        cache = self.get_translations_cache(ctx)
-
-        translations = cache.get(str(locale))
-        if translations is None:
-            translations_dir = self.get_translations_path(ctx)
-            translations = Translations.load(translations_dir, locale,
-                                             domain=self.domain)
-
-            # Load plugins translations
-            if isinstance(translations, Translations):
-                # Load core extensions translations
-                from wtforms.i18n import messages_path
-                wtforms_translations = Translations.load(messages_path(),
-                                                         locale,
-                                                         domain='wtforms')
-                translations.merge(wtforms_translations)
-
-                import flask_security
-                flask_security_translations = Translations.load(
-                    join(flask_security.__path__[0], 'translations'),
-                    locale,
-                    domain='flask_security'
-                )
-                translations.merge(flask_security_translations)
-
-                for pkg in entrypoints.get_roots(current_app):
-                    loader = pkgutil.get_loader(pkg)
-                    path = dirname(loader.path)
-                    domains = [f.replace(path, '').replace('.pot', '')[1:]
-                               for f in iglob(join(path, '**/translations/*.pot'), recursive=True)]
-                    for domain in domains:
-                        domain_path = join(path, dirname(domain))
-                        translations.merge(Translations.load(domain_path, locale,
-                                                             domain=basename(domain)))
-                cache[str(locale)] = translations
-
-        return translations
+    return translations_dir, domains
 
 
-domain = PluggableDomain(domain='udata')
-babel = Babel(default_domain=domain)
+def get_locale():
+    if getattr(g, "lang_code", None):
+        return g.lang_code
+    return str(default_lang)
 
 
 # Create shortcuts for the default Flask domain
 def gettext(*args, **kwargs):
-    return domain.gettext(*args, **kwargs)
+    return flask_babel.gettext(*args, **kwargs)
 
 
 _ = gettext
 
 
 def ngettext(*args, **kwargs):
-    return domain.ngettext(*args, **kwargs)
+    return flask_babel.ngettext(*args, **kwargs)
 
 
 N_ = ngettext
 
 
 def pgettext(*args, **kwargs):
-    return domain.pgettext(*args, **kwargs)
+    return flask_babel.pgettext(*args, **kwargs)
 
 
 P_ = pgettext
 
 
 def npgettext(*args, **kwargs):
-    return domain.npgettext(*args, **kwargs)
+    return flask_babel.npgettext(*args, **kwargs)
 
 
 def lazy_gettext(*args, **kwargs):
-    return domain.lazy_gettext(*args, **kwargs)
+    return flask_babel.lazy_gettext(*args, **kwargs)
 
 
 L_ = lazy_gettext
 
 
 def lazy_pgettext(*args, **kwargs):
-    return domain.lazy_pgettext(*args, **kwargs)
+    return flask_babel.lazy_pgettext(*args, **kwargs)
+
+
+def format_timedelta(
+    datetime_or_timedelta, granularity="second", add_direction=False, threshold=0.85
+):
+    """This is format_timedelta from Flask-Babel"""
+    """Flask-BabelEx missed the add_direction parameter"""
+    if isinstance(datetime_or_timedelta, datetime):
+        datetime_or_timedelta = datetime.utcnow() - datetime_or_timedelta
+    return babel_format_timedelta(
+        datetime_or_timedelta,
+        granularity,
+        threshold=threshold,
+        add_direction=add_direction,
+        locale=get_current_locale(),
+    )
 
 
 def _default_lang(user=None):
-    lang = getattr(user or current_user, 'prefered_language', None)
-    return lang or current_app.config['DEFAULT_LANGUAGE']
+    lang = getattr(user or current_user, "prefered_language", None)
+    return lang or current_app.config["DEFAULT_LANGUAGE"]
 
 
 default_lang = LocalProxy(lambda: _default_lang())
@@ -132,12 +115,12 @@ default_lang = LocalProxy(lambda: _default_lang())
 
 @contextmanager
 def language(lang_code):
-    '''Force a given language'''
+    """Force a given language"""
     ctx = None
     if not request:
         ctx = current_app.test_request_context()
         ctx.push()
-    backup = g.get('lang_code')
+    backup = g.get("lang_code")
     g.lang_code = lang_code
     refresh()
     yield
@@ -147,63 +130,58 @@ def language(lang_code):
     refresh()
 
 
-@babel.localeselector
-def get_locale():
-    if getattr(g, 'lang_code', None):
-        return g.lang_code
-    return str(default_lang)
-
-
 def check_config(cfg):
-    default_language = cfg['DEFAULT_LANGUAGE']
-    if default_language not in cfg.get('LANGUAGES', []):
-        raise ConfigError('You are using a DEFAULT_LANGUAGE {0} not defined '
-                          'into LANGUAGES'.format(default_language))
+    default_language = cfg["DEFAULT_LANGUAGE"]
+    if default_language not in cfg.get("LANGUAGES", []):
+        raise ConfigError(
+            "You are using a DEFAULT_LANGUAGE {0} not defined " "into LANGUAGES".format(
+                default_language
+            )
+        )
 
 
 def init_app(app):
     check_config(app.config)
-    app.config.setdefault('BABEL_DEFAULT_LOCALE',
-                          app.config['DEFAULT_LANGUAGE'])
-    babel.init_app(app)
+    translations_dir, domains = get_translation_directories_and_domains()
+    Babel(
+        app,
+        default_locale=app.config["DEFAULT_LANGUAGE"],
+        default_translation_directories=";".join(translations_dir),
+        default_domain=";".join(domains),
+        locale_selector=get_locale,
+    )
 
 
 def _add_language_code(endpoint, values):
     try:
-        if current_app.url_map.is_endpoint_expecting(endpoint, 'lang_code'):
-            values.setdefault('lang_code', g.get('lang_code') or get_locale())
+        if current_app.url_map.is_endpoint_expecting(endpoint, "lang_code"):
+            values.setdefault("lang_code", g.get("lang_code") or get_locale())
     except KeyError:  # Endpoint does not exist
         pass
 
 
 def _pull_lang_code(endpoint, values):
-    lang_code = values.pop('lang_code', g.get('lang_code') or get_locale())
-    if lang_code not in current_app.config['LANGUAGES']:
-        try:
-            abort(redirect(
-                url_for(endpoint, lang_code=default_lang, **values)))
-        except:
-            abort(redirect(
-                request.url.replace('/{0}/'.format(lang_code),
-                                    '/{0}/'.format(default_lang))))
+    lang_code = values.pop("lang_code", g.get("lang_code") or get_locale())
+    if lang_code not in current_app.config["LANGUAGES"]:
+        abort(redirect(url_for(endpoint, lang_code=default_lang, **values)))
     g.lang_code = lang_code
 
 
 def redirect_to_lang(*args, **kwargs):
-    '''Redirect non lang-prefixed urls to default language.'''
-    endpoint = request.endpoint.replace('_redirect', '')
+    """Redirect non lang-prefixed urls to default language."""
+    endpoint = request.endpoint.replace("_redirect", "")
     kwargs = multi_to_dict(request.args)
     kwargs.update(request.view_args)
-    kwargs['lang_code'] = default_lang
+    kwargs["lang_code"] = default_lang
     return redirect(url_for(endpoint, **kwargs))
 
 
 def redirect_to_unlocalized(*args, **kwargs):
-    '''Redirect lang-prefixed urls to no prefixed URL.'''
-    endpoint = request.endpoint.replace('_redirect', '')
+    """Redirect lang-prefixed urls to no prefixed URL."""
+    endpoint = request.endpoint.replace("_redirect", "")
     kwargs = multi_to_dict(request.args)
     kwargs.update(request.view_args)
-    kwargs.pop('lang_code', None)
+    kwargs.pop("lang_code", None)
     return redirect(url_for(endpoint, **kwargs))
 
 
@@ -215,35 +193,51 @@ class I18nBlueprintSetupState(BlueprintSetupState):
         The URL rule is registered twice.
         """
         # Static assets are not localized
-        if endpoint == 'static':
+        if endpoint == "static":
             return super(I18nBlueprintSetupState, self).add_url_rule(
-                rule, endpoint=endpoint, view_func=view_func, **options)
+                rule, endpoint=endpoint, view_func=view_func, **options
+            )
         if self.url_prefix:
             rule = self.url_prefix + rule
-        options.setdefault('subdomain', self.subdomain)
+        options.setdefault("subdomain", self.subdomain)
         if endpoint is None:
             endpoint = _endpoint_from_view_func(view_func)
         defaults = self.url_defaults
-        if 'defaults' in options:
-            defaults = dict(defaults, **options.pop('defaults'))
+        if "defaults" in options:
+            defaults = dict(defaults, **options.pop("defaults"))
 
-        if options.pop('localize', True):
-            self.app.add_url_rule('/<lang:lang_code>' + rule,
-                                  '%s.%s' % (self.blueprint.name, endpoint),
-                                  view_func, defaults=defaults, **options)
+        if options.pop("localize", True):
+            self.app.add_url_rule(
+                "/<lang:lang_code>" + rule,
+                "%s.%s" % (self.blueprint.name, endpoint),
+                view_func,
+                defaults=defaults,
+                **options,
+            )
 
             self.app.add_url_rule(
-                rule, '%s.%s_redirect' % (self.blueprint.name, endpoint),
-                redirect_to_lang, defaults=defaults, **options)
+                rule,
+                "%s.%s_redirect" % (self.blueprint.name, endpoint),
+                redirect_to_lang,
+                defaults=defaults,
+                **options,
+            )
         else:
-            self.app.add_url_rule(rule,
-                                  '%s.%s' % (self.blueprint.name, endpoint),
-                                  view_func, defaults=defaults, **options)
+            self.app.add_url_rule(
+                rule,
+                "%s.%s" % (self.blueprint.name, endpoint),
+                view_func,
+                defaults=defaults,
+                **options,
+            )
 
             self.app.add_url_rule(
-                '/<lang:lang_code>' + rule,
-                '%s.%s_redirect' % (self.blueprint.name, endpoint),
-                redirect_to_unlocalized, defaults=defaults, **options)
+                "/<lang:lang_code>" + rule,
+                "%s.%s_redirect" % (self.blueprint.name, endpoint),
+                redirect_to_unlocalized,
+                defaults=defaults,
+                **options,
+            )
 
 
 class I18nBlueprint(Blueprint):

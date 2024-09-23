@@ -135,19 +135,29 @@ export const hidpi = (window.devicePixelRatio > 1 || (
 );
 
 /**
- * Map configuration
- */
-export const map = _jsonMeta('map-config');
-
-/**
  * Tags constraints
  */
 export const tags = _jsonMeta('tags-config');
 
 /**
- * Max number of resources to display uncollapsed in dataset view
+ * License groups options
  */
-export const dataset_max_resources_uncollapsed = _jsonMeta('dataset-max-resources-uncollapsed');
+export const license_groups = _jsonMeta('license-groups-options') && Object.fromEntries(_jsonMeta('license-groups-options'));
+
+/**
+ * Harvest validation contact form
+ */
+export const harvest_validation_contact_form = _meta('harvest-validation-contact-form')
+
+/**
+ * Harvest : enable manual run from producers
+ */
+export const harvest_enable_manual_run = _jsonMeta('harvest-enable-manual-run')
+
+/**
+ * The expected business identification format
+ */
+export const org_bid_format = _meta('org-bid-format')
 
 /**
  * Markdown configuration.
@@ -189,9 +199,10 @@ export default {
     is_territory_enabled,
     is_delete_me_enabled,
     hidpi,
-    map,
     tags,
-    dataset_max_resources_uncollapsed,
+    license_groups,
+    harvest_validation_contact_form,
+    org_bid_format,
     is_search_autocomplete_enabled,
     search_autocomplete_debounce,
     markdown,

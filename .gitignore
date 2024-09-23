@@ -39,10 +39,10 @@ js-built
 /site/
 /node_modules/
 /udata/static/
-/udata/manifest.json
 /jsdoc/
 *.rdb
 venv
+.venv
 
 # Installer logs
 pip-log.txt
@@ -79,3 +79,15 @@ data
 
 # PyCharm
 .idea
+
+# Pyenv
+.python-version
+
+# Ruff
+.ruff_cache
+
+# VSCode
+.vscode
+
+# Project specific
+fs/resources/

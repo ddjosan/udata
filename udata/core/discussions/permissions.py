@@ -1,7 +1,7 @@
 from udata.auth import Permission, UserNeed
-
 from udata.core.organization.permissions import (
-    OrganizationAdminNeed, OrganizationEditorNeed
+    OrganizationAdminNeed,
+    OrganizationEditorNeed,
 )
 
 
@@ -10,10 +10,10 @@ class CloseDiscussionPermission(Permission):
         needs = []
         subject = discussion.subject
 
-        if getattr(subject, 'organization'):
+        if getattr(subject, "organization"):
             needs.append(OrganizationAdminNeed(subject.organization.id))
             needs.append(OrganizationEditorNeed(subject.organization.id))
         elif subject.owner:
-            needs.append(UserNeed(subject.owner.id))
+            needs.append(UserNeed(subject.owner.fs_uniquifier))
 
         super(CloseDiscussionPermission, self).__init__(*needs)

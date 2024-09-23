@@ -1,16 +1,15 @@
 from flask import url_for
-
-from rdflib import URIRef, Literal, BNode
-from rdflib.namespace import RDF, FOAF, RDFS
+from rdflib import BNode, Literal, URIRef
+from rdflib.namespace import FOAF, RDF, RDFS
 from rdflib.resource import Resource as RdfResource
 
 from udata import api
-from udata.rdf import DCAT, DCT, HYDRA
-from udata.tests import TestCase, DBTestMixin
-from udata.core.organization.factories import OrganizationFactory
-from udata.core.organization.rdf import organization_to_rdf, build_org_catalog
-from udata.core.dataset.factories import VisibleDatasetFactory
+from udata.core.dataset.factories import DatasetFactory
 from udata.core.dataset.models import Dataset
+from udata.core.organization.factories import OrganizationFactory
+from udata.core.organization.rdf import build_org_catalog, organization_to_rdf
+from udata.rdf import DCAT, DCT, HYDRA
+from udata.tests import DBTestMixin, TestCase
 from udata.utils import faker
 
 
@@ -36,9 +35,7 @@ class OrganizationToRdfTest(DBTestMixin, TestCase):
 
     def test_all_fields(self):
         org = OrganizationFactory(url=faker.uri())
-        org_url = url_for('api.organization',
-                          org=org.id,
-                          _external=True)
+        org_url = url_for("api.organization", org=org.id, _external=True)
         o = organization_to_rdf(org)
         g = o.graph
 
@@ -55,11 +52,11 @@ class OrganizationToRdfTest(DBTestMixin, TestCase):
 
     def test_catalog(self):
         origin_org = OrganizationFactory()
-        uri = url_for('api.organization_rdf', org=origin_org.id, _external=True)
+        uri = url_for("api.organization_rdf", org=origin_org.id, _external=True)
 
-        datasets = VisibleDatasetFactory.create_batch(3, organization=origin_org)
+        datasets = DatasetFactory.create_batch(3, organization=origin_org)
         catalog = build_org_catalog(origin_org, datasets)
-        
+
         graph = catalog.graph
 
         self.assertIsInstance(catalog, RdfResource)
@@ -77,6 +74,9 @@ class OrganizationToRdfTest(DBTestMixin, TestCase):
         self.assertEqual(org.value(RDF.type).identifier, FOAF.Organization)
         self.assertEqual(org.value(FOAF.name), Literal(origin_org.name))
 
+        self.assertEqual(catalog.value(DCT.title), Literal(f"{origin_org.name}"))
+        self.assertEqual(catalog.value(DCT.description), Literal(f"{origin_org.name}"))
+
         graph = catalog.graph
         graph_datasets = graph.subjects(RDF.type, DCAT.Dataset)
         self.assertEqual(len(list(graph_datasets)), len(datasets))
@@ -85,16 +85,28 @@ class OrganizationToRdfTest(DBTestMixin, TestCase):
         origin_org = OrganizationFactory()
         page_size = 3
         total = 4
-        uri = url_for('api.organization_rdf', org=origin_org.id, _external=True)
-        uri_first = url_for('api.organization_rdf_format', org=origin_org.id, format='json',
-                            page=1, page_size=page_size, _external=True)
-        uri_last = url_for('api.organization_rdf_format', org=origin_org.id, format='json',
-                           page=2, page_size=page_size, _external=True)
-        VisibleDatasetFactory.create_batch(total, organization=origin_org)
+        uri = url_for("api.organization_rdf", org=origin_org.id, _external=True)
+        uri_first = url_for(
+            "api.organization_rdf_format",
+            org=origin_org.id,
+            format="json",
+            page=1,
+            page_size=page_size,
+            _external=True,
+        )
+        uri_last = url_for(
+            "api.organization_rdf_format",
+            org=origin_org.id,
+            format="json",
+            page=2,
+            page_size=page_size,
+            _external=True,
+        )
+        DatasetFactory.create_batch(total, organization=origin_org)
 
         # First page
         datasets = Dataset.objects.paginate(1, page_size)
-        catalog = build_org_catalog(origin_org, datasets, format='json')
+        catalog = build_org_catalog(origin_org, datasets, format="json")
         graph = catalog.graph
 
         self.assertIsInstance(catalog, RdfResource)
@@ -107,8 +119,7 @@ class OrganizationToRdfTest(DBTestMixin, TestCase):
 
         self.assertEqual(len(list(catalog.objects(DCAT.dataset))), page_size)
 
-        paginations = list(graph.subjects(RDF.type,
-                                          HYDRA.PartialCollectionView))
+        paginations = list(graph.subjects(RDF.type, HYDRA.PartialCollectionView))
         self.assertEqual(len(paginations), 1)
         pagination = graph.resource(paginations[0])
         self.assertEqual(pagination.identifier, URIRef(uri_first))
@@ -119,7 +130,7 @@ class OrganizationToRdfTest(DBTestMixin, TestCase):
 
         # Second page
         datasets = Dataset.objects.paginate(2, page_size)
-        catalog = build_org_catalog(origin_org, datasets, format='json')
+        catalog = build_org_catalog(origin_org, datasets, format="json")
         graph = catalog.graph
 
         self.assertIsInstance(catalog, RdfResource)
@@ -132,8 +143,7 @@ class OrganizationToRdfTest(DBTestMixin, TestCase):
 
         self.assertEqual(len(list(catalog.objects(DCAT.dataset))), 1)
 
-        paginations = list(graph.subjects(RDF.type,
-                                          HYDRA.PartialCollectionView))
+        paginations = list(graph.subjects(RDF.type, HYDRA.PartialCollectionView))
         self.assertEqual(len(paginations), 1)
         pagination = graph.resource(paginations[0])
         self.assertEqual(pagination.identifier, URIRef(uri_last))
