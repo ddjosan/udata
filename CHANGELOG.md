@@ -2,8 +2,89 @@
 
 ## Current (in progress)
 
+- Add a matomo "campaign" parameter on links in emails if `MAIL_CAMPAIGN` is configured [#3190](https://github.com/opendatateam/udata/pull/3190)
+
+## 10.0.2 (2024-11-19)
+
+- Use correct DCAT.service predicate in RDF output [#3199](https://github.com/opendatateam/udata/pull/3199)
+- Fix the Badge.badge_label method [#3198](https://github.com/opendatateam/udata/pull/3198)
+- Skip servesDataset for tabular API dataservice (temporary fix) [#3196](https://github.com/opendatateam/udata/pull/3196)
+
+## 10.0.1 (2024-11-15)
+
+- Add more comments and types in the `api_field.py` "lib" [#3174](https://github.com/opendatateam/udata/pull/3174)
+- Allow overriding of badges (for example in plugins like udata-front) [#3191](https://github.com/opendatateam/udata/pull/3191)
+- Add link to new admin in existing udata admin based on `NEW_ADMIN_URL` setting [#3194](https://github.com/opendatateam/udata/pull/3194)
+- Add business documentation url property on dataservice [#3193](https://github.com/opendatateam/udata/pull/3193)
+- Expose the dataset's alternate identifier in RDF [#3186](https://github.com/opendatateam/udata/pull/3186)
+
+## 10.0.0 (2024-11-07)
+
+- **breaking change** Migrate organization badges label to lowercase [#3182](https://github.com/opendatateam/udata/pull/3182)
+- Add contact_form in ContactPoint api fields [#3175](https://github.com/opendatateam/udata/pull/3175)
+- Expose contact point in DCAT RDF [#3179](https://github.com/opendatateam/udata/pull/3179)
+- Use trailing slashes for the upload files URLs [#3177](https://github.com/opendatateam/udata/pull/3177)
+- Use hydra's RESTful endpoint URLs [#3146](https://github.com/opendatateam/udata/pull/3146)
+- Return dataservices visible to the user [#3180](https://github.com/opendatateam/udata/pull/3180)
+- Fix flaky "duplicated email" importing fixtures tests [#3176](https://github.com/opendatateam/udata/pull/3176)
+- Fix deprecated CircleCI config [#3181](https://github.com/opendatateam/udata/pull/3181)
+- Use proper RESTful Hydra API endpoints [#3178](https://github.com/opendatateam/udata/pull/3178)
+- Add a "filter by organization badge" for datasets, dataservices, reuses and organizations [#3155](https://github.com/opendatateam/udata/pull/3155)
+    * you will need https://github.com/opendatateam/udata-search-service/pull/49 for the search service
+- Add dataservices search with search-service [#3171](https://github.com/opendatateam/udata/pull/3171)
+    * you will need https://github.com/opendatateam/udata-search-service/pull/48
+- Expose the "landingPage" in DCAT RDF [#3183](https://github.com/opendatateam/udata/pull/3183)
+- Licence.guess: extract first URL for better matching [#3185](https://github.com/opendatateam/udata/pull/3185)
+
+## 9.2.4 (2024-10-22)
+
+- Add a job to bind Tabular API to its datasets [#3162](https://github.com/opendatateam/udata/pull/3162)
+- Expose dataservices' datasets by link instead of list [#3156](https://github.com/opendatateam/udata/pull/3156)
+- CSW ISO Harvest: add extra_configs.remote_url_prefix [#3157](https://github.com/opendatateam/udata/pull/3157)
+- DCAT harvest : Refactor DCAT extras handling in rdf parsing [#3054](https://github.com/opendatateam/udata/pull/3054). `accesRights`, `rights` and `license` are now in `extras["dcat"]` for both datasets and resources. `accessRights` can be infered for a dataset from its resources.
+
+## 9.2.3 (2024-10-14)
+
+- Add migration to delete duplicate resources due to ODS harvesting [#3158](https://github.com/opendatateam/udata/pull/3158)
+- Add discussion.posted_on in discussion sort choices [3168](https://github.com/opendatateam/udata/pull/3168)
+
+## 9.2.2 (2024-10-08)
+
+- Add a filter on organization and document sort parameters in the `/discussions` endpoint [#3147](https://github.com/opendatateam/udata/pull/3147)
+- Move discussion catalog creation and add fields [#3152](https://github.com/opendatateam/udata/pull/3152) and [#3154](https://github.com/opendatateam/udata/pull/3154)
+- Add resources formats and harvest remote_url on dataset catalog [#3159](https://github.com/opendatateam/udata/pull/3159)
+- Add contact form in contact point model [#3164](https://github.com/opendatateam/udata/pull/3164)
+- Make base_api_url optional in dataservice [https://github.com/opendatateam/udata/pull/3163](#3163)
+
+## 9.2.1 (2024-09-23)
+
+- Enable basic search on dataservices [#3148](https://github.com/opendatateam/udata/pull/3148)
+
+## 9.2.0 (2024-09-13)
+
+- Allow OAuth clients without secrets [#3138](https://github.com/opendatateam/udata/pull/3138)
+- Add a `archived` button for datasets and reuses on frontend admin [#3104](https://github.com/opendatateam/udata/pull/3104)
+- **breaking change** Return all the reuses available to a user on the /reuses endpoint, including the private and deleted ones they own [#3140](https://github.com/opendatateam/udata/pull/3140).
+- Fix undelete reuse and dataservices [#3141](https://github.com/opendatateam/udata/pull/3141)
+- Add a minimal publiccode.yml [#3144](https://github.com/opendatateam/udata/pull/3144)
+- Fix the boolean filters in the API for the "new system" endpoints [#3139](https://github.com/opendatateam/udata/pull/3139)
+- Update authlib dependency from 0.14.3 to 1.3.1 [#3135](https://github.com/opendatateam/udata/pull/3135)
+- Add CORS on resource redirect [#3145](https://github.com/opendatateam/udata/pull/3145)
+
+## 9.1.4 (2024-08-26)
+
 - Fix many linting issues reported by ruff [#3118](https://github.com/opendatateam/udata/pull/3118)
 - Import the dataservice's organization from the fixtures [#3121](https://github.com/opendatateam/udata/pull/3121)
+- Convert reuse to new API system [#3066](https://github.com/opendatateam/udata/pull/3066)
+- Fix circular import error [#3128](https://github.com/opendatateam/udata/pull/3128)
+- Add an option to specify the port when using `inv serve` [#3123](https://github.com/opendatateam/udata/pull/3123)
+- Add a new `related_to` filter parameter to the activities API endpoint [#3127](https://github.com/opendatateam/udata/pull/3127)
+- Properly import the `Discussion.closed_by` from the fixtures [#3125](https://github.com/opendatateam/udata/pull/3125)
+- Send an API token to Hydra when publishing resource events [#3130](https://github.com/opendatateam/udata/pull/3130)
+- Add `last_login_at` to org members API [#3133](https://github.com/opendatateam/udata/pull/3133)
+- Always add Vary even for non CORS requests [#3132](https://github.com/opendatateam/udata/pull/3132)
+- Add acronym in organization csv catalog [#3134](https://github.com/opendatateam/udata/pull/3134)
+- Limit the number of user suggestions [#3131](https://github.com/opendatateam/udata/pull/3131)
 
 ## 9.1.3 (2024-08-01)
 
@@ -13,6 +94,7 @@
 - Update to the version v2.0.0 of udata-fixtures (with the dataservices)
 - Add type hints [#3111](https://github.com/opendatateam/udata/pull/3111)
 - Make sure requests v2.32.3 is used everywhere consistently [#3116](https://github.com/opendatateam/udata/pull/3116)
+- Expose a dataservice in its organization's catalog, and expose a dataservice's catalog [#3122](https://github.com/opendatateam/udata/pull/3122)
 
 ## 9.1.2 (2024-07-29)
 

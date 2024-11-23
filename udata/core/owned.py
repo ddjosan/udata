@@ -24,6 +24,22 @@ class OwnedQuerySet(UDataQuerySet):
             qs |= Q(owner=owner) | Q(organization=owner)
         return self(qs)
 
+    def visible_by_user(self, user: User, visible_query: Q):
+        """Return EVERYTHING visible to the user."""
+        if user.is_anonymous:
+            return self(visible_query)
+
+        if user.sysadmin:
+            return self()
+
+        owners: list[User | Organization] = list(user.organizations) + [user.id]
+        # We create a new queryset because we want a pristine self._query_obj.
+        owned_qs: OwnedQuerySet = self.__class__(self._document, self._collection_obj).owned_by(
+            *owners
+        )
+
+        return self(visible_query | owned_qs._query_obj)
+
 
 def check_owner_is_current_user(owner):
     from udata.auth import admin_permission, current_user
@@ -32,7 +48,7 @@ def check_owner_is_current_user(owner):
         current_user.is_authenticated
         and owner
         and not admin_permission
-        and current_user.id != owner
+        and current_user.id != owner.id
     ):
         raise FieldValidationError(_("You can only set yourself as owner"), field="owner")
 
@@ -41,7 +57,7 @@ def check_organization_is_valid_for_current_user(organization):
     from udata.auth import current_user
     from udata.models import Organization
 
-    org = Organization.objects(id=organization).first()
+    org = Organization.objects(id=organization.id).first()
     if org is None:
         raise FieldValidationError(_("Unknown organization"), field="organization")
 
@@ -62,6 +78,7 @@ class Owned(object):
         description="Only present if organization is not set. Can only be set to the current authenticated user.",
         check=check_owner_is_current_user,
         allow_null=True,
+        filterable={},
     )
     organization = field(
         ReferenceField(Organization, reverse_delete_rule=NULLIFY),
@@ -69,6 +86,7 @@ class Owned(object):
         description="Only present if owner is not set. Can only be set to an organization of the current authenticated user.",
         check=check_organization_is_valid_for_current_user,
         allow_null=True,
+        filterable={},
     )
 
     on_owner_change = signal("Owned.on_owner_change")

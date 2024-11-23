@@ -2,17 +2,24 @@ from blinker import Signal
 from mongoengine.signals import post_save, pre_save
 from werkzeug.utils import cached_property
 
+from udata.api_fields import field, function_field, generate_fields
+from udata.core.dataset.api_fields import dataset_fields
 from udata.core.owned import Owned, OwnedQuerySet
+from udata.core.reuse.api_fields import BIGGEST_IMAGE_SIZE
 from udata.core.storages import default_image_basename, images
 from udata.frontend.markdown import mdstrip
 from udata.i18n import lazy_gettext as _
-from udata.models import BadgeMixin, WithMetrics, db
+from udata.mail import get_mail_campaign_dict
+from udata.models import Badge, BadgeMixin, BadgesList, WithMetrics, db
+from udata.mongo.errors import FieldValidationError
 from udata.uris import endpoint_for
 from udata.utils import hash_url
 
 from .constants import IMAGE_MAX_SIZE, IMAGE_SIZES, REUSE_TOPICS, REUSE_TYPES
 
 __all__ = ("Reuse",)
+
+BADGES: dict[str, str] = {}
 
 
 class ReuseQuerySet(OwnedQuerySet):
@@ -23,37 +30,117 @@ class ReuseQuerySet(OwnedQuerySet):
         return self(db.Q(private=True) | db.Q(datasets__0__exists=False) | db.Q(deleted__ne=None))
 
 
-class Reuse(db.Datetimed, WithMetrics, BadgeMixin, Owned, db.Document):
-    title = db.StringField(required=True)
-    slug = db.SlugField(
-        max_length=255, required=True, populate_from="title", update=True, follow=True
+def check_url_does_not_exists(url):
+    """Ensure a reuse URL is not yet registered"""
+    if url and Reuse.url_exists(url):
+        raise FieldValidationError(_("This URL is already registered"), field="url")
+
+
+def validate_badge(value):
+    if value not in Reuse.__badges__.keys():
+        raise db.ValidationError("Unknown badge type")
+
+
+class ReuseBadge(Badge):
+    kind = db.StringField(required=True, validation=validate_badge)
+
+
+class ReuseBadgeMixin(BadgeMixin):
+    badges = field(BadgesList(ReuseBadge), **BadgeMixin.default_badges_list_params)
+    __badges__ = BADGES
+
+
+@generate_fields(
+    searchable=True,
+    additional_sorts=[
+        {"key": "datasets", "value": "metrics.datasets"},
+        {"key": "followers", "value": "metrics.followers"},
+        {"key": "views", "value": "metrics.views"},
+    ],
+    additional_filters={"organization_badge": "organization.badges"},
+)
+class Reuse(db.Datetimed, WithMetrics, ReuseBadgeMixin, Owned, db.Document):
+    title = field(
+        db.StringField(required=True),
+        sortable=True,
+        show_as_ref=True,
     )
-    description = db.StringField(required=True)
-    type = db.StringField(required=True, choices=list(REUSE_TYPES))
-    url = db.StringField(required=True)
+    slug = field(
+        db.SlugField(
+            max_length=255, required=True, populate_from="title", update=True, follow=True
+        ),
+        readonly=True,
+    )
+    description = field(
+        db.StringField(required=True),
+        markdown=True,
+    )
+    type = field(
+        db.StringField(required=True, choices=list(REUSE_TYPES)),
+        filterable={},
+    )
+    url = field(
+        db.StringField(required=True),
+        description="The remote URL (website)",
+        check=check_url_does_not_exists,
+    )
     urlhash = db.StringField(required=True, unique=True)
     image_url = db.StringField()
-    image = db.ImageField(
-        fs=images, basename=default_image_basename, max_size=IMAGE_MAX_SIZE, thumbnails=IMAGE_SIZES
+    image = field(
+        db.ImageField(
+            fs=images,
+            basename=default_image_basename,
+            max_size=IMAGE_MAX_SIZE,
+            thumbnails=IMAGE_SIZES,
+        ),
+        readonly=True,
+        show_as_ref=True,
+        thumbnail_info={
+            "size": BIGGEST_IMAGE_SIZE,
+        },
     )
-    datasets = db.ListField(db.ReferenceField("Dataset", reverse_delete_rule=db.PULL))
-    tags = db.TagListField()
-    topic = db.StringField(required=True, choices=list(REUSE_TOPICS))
+    datasets = field(
+        db.ListField(
+            field(
+                db.ReferenceField("Dataset", reverse_delete_rule=db.PULL),
+                nested_fields=dataset_fields,
+            ),
+        ),
+        filterable={
+            "key": "dataset",
+        },
+    )
+    tags = field(
+        db.TagListField(),
+        filterable={
+            "key": "tag",
+        },
+    )
+    topic = field(
+        db.StringField(required=True, choices=list(REUSE_TOPICS)),
+        filterable={},
+    )
     # badges = db.ListField(db.EmbeddedDocumentField(ReuseBadge))
 
-    private = db.BooleanField(default=False)
+    private = field(db.BooleanField(default=False), filterable={})
 
     ext = db.MapField(db.GenericEmbeddedDocumentField())
-    extras = db.ExtrasField()
+    extras = field(db.ExtrasField())
 
-    featured = db.BooleanField()
-    deleted = db.DateTimeField()
-    archived = db.DateTimeField()
+    featured = field(
+        db.BooleanField(),
+        filterable={},
+        readonly=True,
+    )
+    deleted = field(
+        db.DateTimeField(),
+    )
+    archived = field(
+        db.DateTimeField(),
+    )
 
     def __str__(self):
         return self.title or ""
-
-    __badges__ = {}
 
     __metrics_keys__ = [
         "discussions",
@@ -110,6 +197,16 @@ class Reuse(db.Datetimed, WithMetrics, BadgeMixin, Owned, db.Document):
 
     display_url = property(url_for)
 
+    @function_field(description="Link to the API endpoint for this reuse", show_as_ref=True)
+    def uri(self):
+        return endpoint_for("api.reuse", reuse=self, _external=True)
+
+    @function_field(description="Link to the udata web page for this reuse", show_as_ref=True)
+    def page(self):
+        return endpoint_for(
+            "reuses.show", reuse=self, _external=True, fallback_endpoint="api.reuse"
+        )
+
     @property
     def is_visible(self):
         return not self.is_hidden
@@ -121,6 +218,11 @@ class Reuse(db.Datetimed, WithMetrics, BadgeMixin, Owned, db.Document):
     @property
     def external_url(self):
         return self.url_for(_external=True)
+
+    @property
+    def external_url_with_campaign(self):
+        extras = get_mail_campaign_dict()
+        return self.url_for(_external=True, **extras)
 
     @property
     def type_label(self):

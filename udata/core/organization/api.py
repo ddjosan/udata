@@ -10,13 +10,13 @@ from udata.core.badges import api as badges_api
 from udata.core.badges.fields import badge_fields
 from udata.core.contact_point.api import ContactPointApiParser
 from udata.core.contact_point.api_fields import contact_point_page_fields
+from udata.core.dataservices.models import Dataservice
 from udata.core.dataset.api import DatasetApiParser
 from udata.core.dataset.api_fields import dataset_page_fields
 from udata.core.dataset.models import Dataset
 from udata.core.discussions.api import discussion_fields
 from udata.core.discussions.models import Discussion
 from udata.core.followers.api import FollowAPI
-from udata.core.reuse.api_fields import reuse_fields
 from udata.core.reuse.models import Reuse
 from udata.core.storages.api import (
     image_parser,
@@ -63,6 +63,15 @@ class OrgApiParser(ModelApiParser):
         "last_modified": "last_modified",
     }
 
+    def __init__(self):
+        super().__init__()
+        self.parser.add_argument(
+            "badge",
+            type=str,
+            choices=list(Organization.__badges__),
+            location="args",
+        )
+
     @staticmethod
     def parse_filters(organizations, args):
         if args.get("q"):
@@ -72,6 +81,8 @@ class OrgApiParser(ModelApiParser):
             # between tokens whereas an OR is used without it.
             phrase_query = " ".join([f'"{elem}"' for elem in args["q"].split(" ")])
             organizations = organizations.search_text(phrase_query)
+        if args.get("badge"):
+            organizations = organizations.with_badge(args["badge"])
         return organizations
 
 
@@ -176,7 +187,12 @@ class OrganizationRdfFormatAPI(API):
         page = int(params.get("page", 1))
         page_size = int(params.get("page_size", 100))
         datasets = Dataset.objects(organization=org).visible().paginate(page, page_size)
-        catalog = build_org_catalog(org, datasets, format=format)
+        dataservices = (
+            Dataservice.objects(organization=org)
+            .visible()
+            .filter_by_dataset_pagination(datasets, page)
+        )
+        catalog = build_org_catalog(org, datasets, dataservices, format=format)
         # bypass flask-restplus make_response, since graph_response
         # is handling the content negociation directly
         return make_response(*graph_response(catalog, format))
@@ -417,7 +433,7 @@ class OrganizationSuggestAPI(API):
         ]
 
 
-@ns.route("/<org:org>/logo", endpoint="organization_logo")
+@ns.route("/<org:org>/logo/", endpoint="organization_logo")
 @api.doc(**common_doc)
 class AvatarAPI(API):
     @api.secure
@@ -462,7 +478,7 @@ class OrgDatasetsAPI(API):
 @ns.route("/<org:org>/reuses/", endpoint="org_reuses")
 class OrgReusesAPI(API):
     @api.doc("list_organization_reuses")
-    @api.marshal_list_with(reuse_fields)
+    @api.marshal_list_with(Reuse.__read_fields__)
     def get(self, org):
         """List organization reuses (including private ones when member)"""
         qs = Reuse.objects.owned_by(org)

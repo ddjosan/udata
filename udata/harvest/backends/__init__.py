@@ -14,5 +14,4 @@ def get_all(app):
     return get_enabled("udata.harvesters", app)
 
 
-#from . import statistika, rgz
-from .base import BaseBackend, HarvestFeature, HarvestFilter  # noqa
+from .base import BaseBackend, HarvestFeature, HarvestFilter, HarvestExtraConfig  # noqa
