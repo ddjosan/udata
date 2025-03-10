@@ -16,7 +16,7 @@ class StatistikaBackend(BaseBackend):
     display_name = 'Statistika'
     verify_ssl = False
 
-    def initialize(self):
+    def inner_harvest(self):
         response = self.get(self.source.url)
 
         if response.status_code == 200:
@@ -31,7 +31,7 @@ class StatistikaBackend(BaseBackend):
             for item in list(self.job.data['remote_categories'].keys()):
                 self.add_item(item)
 
-    def process(self, item):
+    def inner_process_dataset(self, item):
         dataset = self.get_dataset(item.remote_id)
 
         category_resources = [x for x in self.job.data['response_data'] if x['IDkategorija'] == item.remote_id]

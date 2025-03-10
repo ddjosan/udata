@@ -29,7 +29,7 @@ class Statistika2021Backend(BaseBackend):
     display_name = 'Statistika 2021'
     verify_ssl = False
 
-    def initialize(self):
+    def inner_harvest(self):
         response = self.get(self.source.url)
 
         if response.status_code == 200:
@@ -53,7 +53,7 @@ class Statistika2021Backend(BaseBackend):
                     remote_id=item['IDAgregant'],
                 )
 
-    def process(self, item):
+    def inner_process_dataset(self, item):
         kwargs = item.kwargs
         dataset = self.get_dataset(item.remote_id)
 
