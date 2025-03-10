@@ -212,6 +212,9 @@ def yield_rows(adapter):
     csvfile = StringIO()
     writer = get_writer(csvfile)
     # Generate header
+
+    yield '\ufeff'
+
     writer.writerow(adapter.header())
     yield csvfile.getvalue()
     del csvfile
@@ -247,6 +250,7 @@ def stream(queryset_or_adapter, basename=None):
         "Content-Disposition": "attachment; filename={0}-{1}.csv".format(
             basename or "export", timestamp
         ),
+        "Content-Type": "text/csv; charset=utf-8"
     }
     streamer = stream_with_context(yield_rows(adapter))
     return Response(streamer, mimetype="text/csv", headers=headers)
