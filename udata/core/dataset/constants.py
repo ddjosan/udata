@@ -30,7 +30,9 @@ UPDATE_FREQUENCIES = OrderedDict(
         ("annual", _("Annual")),  # freq:annual
         ("biennial", _("Biennial")),  # freq:biennial
         ("triennial", _("Triennial")),  # freq:triennial
+        ("quadrennial", _("Quinquennial")),  # N/A
         ("quinquennial", _("Quinquennial")),  # N/A
+        ('decennial', _('Decennial')),                    # N/A
         ("irregular", _("Irregular")),  # freq:irregular
     ]
 )
@@ -76,7 +78,7 @@ CHECKSUM_TYPES = ("sha1", "sha2", "sha256", "md5", "crc")
 DEFAULT_CHECKSUM_TYPE = "sha1"
 
 PIVOTAL_DATA = "pivotal-data"
-CLOSED_FORMATS = ("pdf", "doc", "docx", "word", "xls", "excel", "xlsx")
+CLOSED_FORMATS = ("pdf", "doc", "docx", "word") #, "xls", "excel", "xlsx")
 
 # Maximum acceptable Damerau-Levenshtein distance
 # used to guess license

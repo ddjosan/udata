@@ -68,12 +68,12 @@ class Defaults(object):
 
     # Flask mail settings
 
-    MAIL_DEFAULT_SENDER = "webmaster@udata"
+    MAIL_DEFAULT_SENDER = ('Open Data Portal', 'admindata@ite.gov.rs')
 
     # Flask security settings
 
-    SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_SAMESITE = None  # Can be set to 'Lax' or 'Strict'. See https://flask.palletsprojects.com/en/2.3.x/security/#security-cookie
+    SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_SAMESITE = 'Lax'  # Can be set to 'Lax' or 'Strict'. See https://flask.palletsprojects.com/en/2.3.x/security/#security-cookie
 
     # Flask-Security-Too settings
 
@@ -90,6 +90,14 @@ class Defaults(object):
     SECURITY_PASSWORD_REQUIREMENTS_DIGITS = True
     SECURITY_PASSWORD_REQUIREMENTS_UPPERCASE = True
     SECURITY_PASSWORD_REQUIREMENTS_SYMBOLS = False
+
+    SECURITY_LOGIN_URL = "/login/"
+    SECURITY_LOGOUT_URL = "/logout/"
+    SECURITY_REGISTER_URL = "/register/"
+    SECURITY_CONFIRM_URL = "/confirm/"
+    SECURITY_CHANGE_URL = "/change/"
+    SECURITY_RESET_URL = "/reset/"
+    SECURITY_CHANGE_EMAIL_URL = "/change-email/"
 
     SECURITY_PASSWORD_SALT = "Default uData secret password salt"
     SECURITY_CONFIRM_SALT = "Default uData secret confirm salt"
@@ -117,6 +125,7 @@ class Defaults(object):
 
     # Flask WTF settings
     CSRF_SESSION_KEY = "Default uData csrf key"
+    WTF_CSRF_ENABLED = True
 
     # Flask-Sitemap settings
     # TODO: chose between explicit or automagic for params-less endpoints
@@ -135,6 +144,8 @@ class Defaults(object):
 
     PLUGINS = []
     THEME = None
+
+    UDATA_INSTANCE_NAME = "udata"
 
     STATIC_DIRS = []
 
@@ -462,6 +473,35 @@ class Defaults(object):
     # List of allowed TLDs.
     URLS_ALLOWED_TLDS = tld_set
 
+    # Flask-CDN options
+    # See: https://github.com/libwilliam/flask-cdn#flask-cdn-options
+    # If this value is defined, toggle static assets on external domain
+    CDN_DOMAIN = None
+    # Don't check timestamp on assets (and avoid error on missing assets)
+    CDN_TIMESTAMP = False
+
+    # Map/Tiles configuration
+    ###########################################################################
+    # Tiles URL for SD displays
+    MAP_TILES_URL = 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png'
+    # Tiles URL for HD/HiDPI displays
+    MAP_TILES_URL_HIDPI = 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}@2x.png'
+    # Leaflet tiles config, see https://leafletjs.com/reference-0.7.7.html#tilelayer
+    MAP_TILES_CONFIG = {
+        'subdomains': 'abcd',
+        'attribution': (
+            '&copy;'
+            '<a href="http://openstreetmap.org/copyright">OpenStreetMap</a>'
+            '/'
+            '<a href="https://cartodb.com/attributions">CartoDB</a>'
+        )
+    }
+    # Initial map center position
+    MAP_INITIAL_CENTER = [42, 2.4]
+    # Initial map zoom level
+    MAP_INITIAL_ZOOM = 4
+    # Initial map territory level
+    MAP_INITIAL_LEVEL = 0
     # Flask-CDN options
     # See: https://github.com/libwilliam/flask-cdn#flask-cdn-options
     # If this value is defined, toggle static assets on external domain

@@ -3,7 +3,6 @@ from mongoengine.signals import pre_save
 
 from udata.core.owned import Owned, OwnedQuerySet
 from udata.models import SpatialCoverage, db
-from udata.search import reindex
 from udata.tasks import as_task_param
 
 __all__ = ("Topic",)
@@ -42,6 +41,8 @@ class Topic(db.Document, Owned, db.Datetimed):
     def pre_save(cls, sender, document, **kwargs):
         # Try catch is to prevent the mechanism to crash at the
         # creation of the Topic, where an original state does not exist.
+        from udata.search import reindex
+
         try:
             original_doc = sender.objects.get(id=document.id)
             # Get the diff between the original and current datasets

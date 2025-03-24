@@ -783,8 +783,12 @@ class Dataset(WithMetrics, DatasetBadgeMixin, Owned, db.Document):
             delta = timedelta(days=365 * 2)
         elif self.frequency == "triennial":
             delta = timedelta(days=365 * 3)
+        elif self.frequency == "quadrennial":
+            delta = timedelta(days=365 * 4)
         elif self.frequency == "quinquennial":
             delta = timedelta(days=365 * 5)
+        elif self.frequency == "decennial":
+            delta = timedelta(days=365 * 10)
         if delta is None:
             return
         else:

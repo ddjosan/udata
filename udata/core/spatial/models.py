@@ -19,6 +19,8 @@ class GeoLevel(db.Document):
     id = db.StringField(primary_key=True)
     name = db.StringField(required=True)
     admin_level = db.IntField(min_value=ADMIN_LEVEL_MIN, max_value=ADMIN_LEVEL_MAX, default=100)
+    parents = db.ListField(db.ReferenceField('self'))
+
 
 
 class GeoZoneQuerySet(db.BaseQuerySet):

@@ -7,7 +7,7 @@ from time import time
 from authlib.jose import JsonWebSignature
 from blinker import Signal
 from flask import current_app
-from flask_security import MongoEngineUserDatastore, RoleMixin, UserMixin
+from flask_security import MongoEngineUserDatastore, RoleMixin, UserMixin, Security
 from mongoengine.signals import post_save, pre_save
 from werkzeug.utils import cached_property
 
@@ -89,6 +89,9 @@ class User(WithMetrics, UserMixin, db.Document):
     before_delete = Signal()
     after_delete = Signal()
     on_delete = Signal()
+    
+    def get_id(self):
+        return str(self.id)
 
     meta = {
         "indexes": ["$slug", "-created_at", "slug", "apikey"],
@@ -310,6 +313,11 @@ class User(WithMetrics, UserMixin, db.Document):
 
 
 datastore = MongoEngineUserDatastore(db, User, Role)
+def init_security(app):
+    security = Security(app, datastore)
+    return security
 
+
+# Connect signals
 pre_save.connect(User.pre_save, sender=User)
 post_save.connect(User.post_save, sender=User)

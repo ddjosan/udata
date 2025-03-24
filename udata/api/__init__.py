@@ -19,11 +19,8 @@ from flask_storage import UnauthorizedFileType
 
 from udata import entrypoints, tracking
 from udata.app import csrf
-from udata.i18n import I18nBlueprint,get_locale
-from udata.auth import (
-    current_user, login_user, Permission, RoleNeed, PermissionDenied
-)
-from udata.core.user.models import User
+from udata.auth import Permission, PermissionDenied, RoleNeed, current_user, login_user
+from udata.i18n import get_locale
 from udata.mongo.errors import FieldValidationError
 from udata.utils import safe_unicode
 
@@ -32,9 +29,8 @@ from .signals import on_api_call
 
 log = logging.getLogger(__name__)
 
-apiv1_blueprint = Blueprint('api', __name__, url_prefix='/api/1')
-apiv2_blueprint = Blueprint('apiv2', __name__, url_prefix='/api/2')
-apidoc = I18nBlueprint('apidoc', __name__)
+apiv1_blueprint = Blueprint("api", __name__, url_prefix="/api/1")
+apiv2_blueprint = Blueprint("apiv2", __name__, url_prefix="/api/2")
 
 DEFAULT_PAGE_SIZE = 50
 HEADER_API_KEY = "X-API-KEY"

@@ -7,13 +7,21 @@ from os.path import abspath, dirname, exists, isfile, join
 
 import bson
 from flask import Blueprint as BaseBlueprint
-from flask import Flask, abort, g, json, make_response, send_from_directory
+from flask import Flask, abort, g, json, make_response, send_from_directory, session
 from flask_caching import Cache
 from flask_wtf.csrf import CSRFProtect
 from speaklater import is_lazy_string
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from udata import cors, entrypoints
+
+from flask_security import Security, SQLAlchemyUserDatastore, user_registered
+from flask_login import user_logged_in, current_user, LoginManager
+
+from flask_login import LoginManager
+
+
+login_manager = LoginManager()
 
 APP_NAME = __name__.split(".")[0]
 ROOT_DIR = abspath(join(dirname(__file__)))
@@ -22,7 +30,6 @@ log = logging.getLogger(__name__)
 
 cache = Cache()
 csrf = CSRFProtect()
-
 
 def send_static(directory, filename, cache_timeout):
     out = send_from_directory(directory, filename, cache_timeout=cache_timeout)
@@ -172,6 +179,7 @@ def create_app(config="udata.settings.Defaults", override=None, init_logging=ini
             app.config.setdefault(key, default)
 
     app.json_encoder = UDataJsonEncoder
+    
 
     # `ujson` doesn't support `cls` parameter https://github.com/ultrajson/ultrajson/issues/124
     app.config["RESTX_JSON"] = {"cls": UDataJsonEncoder}
@@ -182,9 +190,30 @@ def create_app(config="udata.settings.Defaults", override=None, init_logging=ini
 
     init_logging(app)
     register_extensions(app)
+    
+    #from udata.core.user.models import init_security
+    #init_security(app)
+    
+    login_manager.init_app(app)
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        print(f"Loading user with ID: {user_id}")
+        from udata.core.user.models import User
+        return User.objects(id=user_id).first()
+    
+    @user_logged_in.connect_via(app)
+    def when_user_logged_in(sender, user):
+        print(f"User {user.email} has logged in and is_authenticated {current_user.is_authenticated} and user_id {user.get_id()}")
+        from flask import session
+        print(f"Session after login: {dict(session)}")
+        
+    @app.route('/debug_session_app', methods=['GET'])
+    def debug_session_app():
+        from flask import session
+        return {'session': dict(session)}                
 
     return app
-
 
 def standalone(app):
     """Factory for an all in one application"""
