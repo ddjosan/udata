@@ -1,11 +1,14 @@
 from datetime import datetime
 
+from blinker import Signal
 from flask import url_for
 from mongoengine import Q
+from mongoengine.signals import post_save
 
 import udata.core.contact_point.api_fields as contact_api_fields
 import udata.core.dataset.api_fields as datasets_api_fields
 from udata.api_fields import field, function_field, generate_fields
+from udata.core.dataservices.constants import DATASERVICE_ACCESS_TYPES, DATASERVICE_FORMATS
 from udata.core.dataset.models import Dataset
 from udata.core.metrics.models import WithMetrics
 from udata.core.owned import Owned, OwnedQuerySet
@@ -21,8 +24,6 @@ from udata.uris import endpoint_for
 # "datasets" # objet : liste de datasets liés à une API
 # "spatial"
 # "temporal_coverage"
-
-DATASERVICE_FORMATS = ["REST", "WMS", "WSL"]
 
 
 class DataserviceQuerySet(OwnedQuerySet):
@@ -93,26 +94,36 @@ class HarvestMetadata(db.EmbeddedDocument):
     )
     last_update = field(db.DateTimeField(), description="Date of the last harvesting")
     archived_at = field(db.DateTimeField())
+    archived_reason = field(db.StringField())
 
 
 @generate_fields(
     searchable=True,
     additional_filters={"organization_badge": "organization.badges"},
+    additional_sorts=[
+        {"key": "followers", "value": "metrics.followers"},
+        {"key": "views", "value": "metrics.views"},
+    ],
 )
 class Dataservice(WithMetrics, Owned, db.Document):
     meta = {
         "indexes": [
             "$title",
+            "metrics.followers",
+            "metrics.views",
         ]
         + Owned.meta["indexes"],
         "queryset_class": DataserviceQuerySet,
         "auto_create_index_on_save": True,
     }
 
+    verbose_name = _("dataservice")
+
+    def __str__(self):
+        return self.title or ""
+
     title = field(
-        db.StringField(required=True),
-        example="My awesome API",
-        sortable=True,
+        db.StringField(required=True), example="My awesome API", sortable=True, show_as_ref=True
     )
     acronym = field(
         db.StringField(max_length=128),
@@ -127,13 +138,22 @@ class Dataservice(WithMetrics, Owned, db.Document):
     )
     description = field(db.StringField(default=""), description="In markdown")
     base_api_url = field(db.URLField(), sortable=True)
-    endpoint_description_url = field(db.URLField())
+
+    machine_documentation_url = field(
+        db.URLField(), description="Swagger link, OpenAPI format, WMS XML…"
+    )
+    technical_documentation_url = field(db.URLField(), description="HTML version of a Swagger…")
     business_documentation_url = field(db.URLField())
-    authorization_request_url = field(db.URLField())
-    availability = field(db.FloatField(min=0, max=100), example="99.99")
+
     rate_limiting = field(db.StringField())
-    is_restricted = field(db.BooleanField(), filterable={})
-    has_token = field(db.BooleanField())
+    rate_limiting_url = field(db.URLField())
+
+    availability = field(db.FloatField(min=0, max=100), example="99.99")
+    availability_url = field(db.URLField())
+
+    access_type = field(db.StringField(choices=DATASERVICE_ACCESS_TYPES), filterable={})
+    authorization_request_url = field(db.URLField())
+
     format = field(db.StringField(choices=DATASERVICE_FORMATS))
 
     license = field(
@@ -145,6 +165,9 @@ class Dataservice(WithMetrics, Owned, db.Document):
 
     tags = field(
         db.TagListField(),
+        filterable={
+            "key": "tag",
+        },
     )
 
     private = field(
@@ -154,24 +177,33 @@ class Dataservice(WithMetrics, Owned, db.Document):
 
     extras = field(db.ExtrasField())
 
-    contact_point = field(
-        db.ReferenceField("ContactPoint", reverse_delete_rule=db.NULLIFY),
-        nested_fields=contact_api_fields.contact_point_fields,
-        allow_null=True,
+    contact_points = field(
+        db.ListField(
+            field(
+                db.ReferenceField("ContactPoint", reverse_delete_rule=db.PULL),
+                nested_fields=contact_api_fields.contact_point_fields,
+                allow_null=True,
+            ),
+        ),
+        filterable={
+            "key": "contact_point",
+        },
     )
 
     created_at = field(
         db.DateTimeField(verbose_name=_("Creation date"), default=datetime.utcnow, required=True),
         readonly=True,
+        sortable="created",
     )
     metadata_modified_at = field(
         db.DateTimeField(
             verbose_name=_("Last modification date"), default=datetime.utcnow, required=True
         ),
         readonly=True,
+        sortable="last_modified",
     )
     deleted_at = field(db.DateTimeField())
-    archived_at = field(db.DateTimeField(), readonly=True)
+    archived_at = field(db.DateTimeField())
 
     datasets = field(
         db.ListField(
@@ -193,19 +225,24 @@ class Dataservice(WithMetrics, Owned, db.Document):
         readonly=True,
     )
 
+    def url_for(self, *args, **kwargs):
+        return endpoint_for(
+            "dataservices.show", "api.dataservice", dataservice=self, *args, **kwargs
+        )
+
     @function_field(description="Link to the API endpoint for this dataservice")
     def self_api_url(self):
         return endpoint_for("api.dataservice", dataservice=self, _external=True)
 
-    @function_field(description="Link to the udata web page for this dataservice")
+    @function_field(description="Link to the udata web page for this dataservice", show_as_ref=True)
     def self_web_url(self):
         return endpoint_for("dataservices.show", dataservice=self, _external=True)
 
-    # TODO
-    # frequency = db.StringField(choices=list(UPDATE_FREQUENCIES.keys()))
-    # temporal_coverage = db.EmbeddedDocumentField(db.DateRange)
-    # spatial = db.EmbeddedDocumentField(SpatialCoverage)
-    # harvest = db.EmbeddedDocumentField(HarvestDatasetMetadata)
+    __metrics_keys__ = [
+        "discussions",
+        "followers",
+        "views",
+    ]
 
     @property
     def is_hidden(self):
@@ -218,3 +255,21 @@ class Dataservice(WithMetrics, Owned, db.Document):
     def count_followers(self):
         self.metrics["followers"] = Follow.objects(until=None).followers(self).count()
         self.save()
+
+    on_create = Signal()
+    on_update = Signal()
+    on_delete = Signal()
+
+    @classmethod
+    def post_save(cls, sender, document, **kwargs):
+        if "post_save" in kwargs.get("ignores", []):
+            return
+        if kwargs.get("created"):
+            cls.on_create.send(document)
+        else:
+            cls.on_update.send(document)
+        if document.deleted_at:
+            cls.on_delete.send(document)
+
+
+post_save.connect(Dataservice.post_save, sender=Dataservice)

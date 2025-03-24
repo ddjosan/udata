@@ -4,6 +4,7 @@ from mongoengine.signals import pre_save
 from udata.core.owned import Owned, OwnedQuerySet
 from udata.models import SpatialCoverage, db
 from udata.tasks import as_task_param
+from udata.search import reindex
 
 __all__ = ("Topic",)
 
@@ -50,7 +51,7 @@ class Topic(db.Document, Owned, db.Datetimed):
         except cls.DoesNotExist:
             datasets_list_dif = document.datasets
         for dataset in datasets_list_dif:
-            reindex.delay(*as_task_param(dataset.fetch()))
+            reindex.delay("Dataset", str(dataset.pk))
 
     @property
     def display_url(self):

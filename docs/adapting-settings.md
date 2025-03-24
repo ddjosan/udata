@@ -443,6 +443,30 @@ If set to `True`, the new passwords will need to contain at least one uppercase 
 
 If set to `True`, the new passwords will need to contain at least one symbol.
 
+## Inactive users deletion options
+
+### YEARS_OF_INACTIVITY_BEFORE_DELETION
+
+**default**: `None`
+
+Set this setting to an int value to activate inactive users account notification and deletion.
+It will filter on users with an account inactive for longer than this number of years.
+
+#### DAYS_BEFORE_ACCOUNT_INACTIVITY_NOTIFY_DELAY
+
+**default**: 30
+
+The delay of days between inactive user notification and its account deletion.
+
+### MAX_NUMBER_OF_USER_INACTIVITY_NOTIFICATIONS
+
+**default**: 200
+
+The maximal number of notifications to send per `notify-inactive-users` job.
+If activating `YEARS_OF_INACTIVITY_BEFORE_DELETION`, you can slowly increase this configuration
+batch after batch. The limitation is made to prevent sending too many mail notifications at once
+resulting in your mail domain being flagged as spam.
+
 ## Flask-Cache options
 
 udata uses Flask-Cache to handle cache and use Redis by default.
@@ -637,7 +661,7 @@ FS_ROOT = '/srv/http/www.data.dev/fs'
 [celery-doc]: http://docs.celeryproject.org/en/latest/userguide/configuration.html
 [celery-conf-map]: http://docs.celeryproject.org/en/latest/userguide/configuration.html#conf-old-settings-map
 [flask-cache-doc]: https://pythonhosted.org/Flask-Cache/
-[flask-mail-doc]: https://pythonhosted.org/flask-mail/
+[flask-mail-doc]: https://flask-mail.readthedocs.io/
 [flask-mongoengine-doc]: https://flask-mongoengine.readthedocs.org/
 [authlib-doc]: https://docs.authlib.org/en/latest/flask/2/authorization-server.html#server
 [udata-search-service]: https://github.com/opendatateam/udata-search-service

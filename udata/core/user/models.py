@@ -82,6 +82,10 @@ class User(WithMetrics, UserMixin, db.Document):
     ext = db.MapField(db.GenericEmbeddedDocumentField())
     extras = db.ExtrasField()
 
+    # Used to track notification for automatic inactive users deletion
+    # when YEARS_OF_INACTIVITY_BEFORE_DELETION is set
+    inactive_deletion_notified_at = db.DateTimeField()
+
     before_save = Signal()
     after_save = Signal()
     on_create = Signal()
@@ -102,6 +106,7 @@ class User(WithMetrics, UserMixin, db.Document):
     __metrics_keys__ = [
         "datasets",
         "reuses",
+        "dataservices",
         "following",
         "followers",
     ]
@@ -239,7 +244,7 @@ class User(WithMetrics, UserMixin, db.Document):
         raise NotImplementedError("""This method should not be using directly.
         Use `mark_as_deleted` (or `_delete` if you know what you're doing)""")
 
-    def mark_as_deleted(self, notify: bool = True):
+    def mark_as_deleted(self, notify: bool = True, delete_comments: bool = False):
         if self.avatar.filename is not None:
             storage = storages.avatars
             storage.delete(self.avatar.filename)
@@ -267,16 +272,17 @@ class User(WithMetrics, UserMixin, db.Document):
                 member for member in organization.members if member.user != self
             ]
             organization.save()
-        for discussion in Discussion.objects(discussion__posted_by=self):
-            # Remove all discussions with current user as only participant
-            if all(message.posted_by == self for message in discussion.discussion):
-                discussion.delete()
-                continue
+        if delete_comments:
+            for discussion in Discussion.objects(discussion__posted_by=self):
+                # Remove all discussions with current user as only participant
+                if all(message.posted_by == self for message in discussion.discussion):
+                    discussion.delete()
+                    continue
 
-            for message in discussion.discussion:
-                if message.posted_by == self:
-                    message.content = "DELETED"
-            discussion.save()
+                for message in discussion.discussion:
+                    if message.posted_by == self:
+                        message.content = "DELETED"
+                discussion.save()
         Follow.objects(follower=self).delete()
         Follow.objects(following=self).delete()
 
@@ -297,6 +303,12 @@ class User(WithMetrics, UserMixin, db.Document):
         from udata.models import Reuse
 
         self.metrics["reuses"] = Reuse.objects(owner=self).visible().count()
+        self.save()
+
+    def count_dataservices(self):
+        from udata.core.dataservices.models import Dataservice
+
+        self.metrics["dataservices"] = Dataservice.objects(owner=self).visible().count()
         self.save()
 
     def count_followers(self):

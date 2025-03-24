@@ -115,6 +115,11 @@ class Defaults(object):
 
     SECURITY_RETURN_GENERIC_RESPONSES = False
 
+    # Inactive users settings
+    YEARS_OF_INACTIVITY_BEFORE_DELETION = None
+    DAYS_BEFORE_ACCOUNT_INACTIVITY_NOTIFY_DELAY = 30
+    MAX_NUMBER_OF_USER_INACTIVITY_NOTIFICATIONS = 200
+
     # Sentry configuration
     SENTRY_DSN = None
     SENTRY_TAGS = {}
@@ -517,6 +522,7 @@ class Defaults(object):
         "discussion",
         "organization",
         "reuse",
+        "dataservice",
         "tag",
         "harvest",
     )
@@ -547,14 +553,23 @@ class Defaults(object):
     READ_ONLY_MODE = False
     METHOD_BLOCKLIST = [
         "OrganizationListAPI.post",
+        "MembershipRequestAPI.post",
+        "MemberAPI.post",
         "ReuseListAPI.post",
         "DatasetListAPI.post",
+        "ResourcesAPI.post",
+        "UploadNewDatasetResource.post",
         "CommunityResourcesAPI.post",
         "UploadNewCommunityResources.post",
         "DiscussionAPI.post",
         "DiscussionsAPI.post",
         "SourcesAPI.post",
+        "PreviewSourceConfigAPI.post",
         "FollowAPI.post",
+        "ContactPointsListAPI.post",
+        "DataservicesAPI.post",
+        "TopicsAPI.post",
+        "TransferRequestsAPI.post",
     ]
 
     # New admin URL
@@ -584,6 +599,10 @@ class Defaults(object):
     # Tabular API Dataservice ID
     ###########################################################################
     TABULAR_API_DATASERVICE_ID = None
+
+    # JSON-LD settings
+    ###########################################################################
+    MAX_RESOURCES_IN_JSON_LD = 20
 
 
 class Testing(object):

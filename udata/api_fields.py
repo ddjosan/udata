@@ -42,7 +42,7 @@ from typing import Any, Callable, Iterable
 import flask_restx.fields as restx_fields
 import mongoengine
 import mongoengine.fields as mongo_fields
-from bson import ObjectId
+from bson import DBRef, ObjectId
 from flask_restx.inputs import boolean
 from flask_restx.reqparse import RequestParser
 from flask_storage.mongo import ImageField as FlaskStorageImageField
@@ -251,7 +251,8 @@ def generate_fields(**kwargs) -> Callable:
 
     It will also
     - generate an API parameter parser
-    - sort and filter a list of documents with the provided params using the `apply_sort_filters_and_pagination` helper
+    - sort and filter a list of documents with the provided params using the `apply_sort_filters` helper
+    - apply a pagination with page and page size args with the `apply_pagination` helper
 
     """
 
@@ -359,7 +360,7 @@ def generate_fields(**kwargs) -> Callable:
                 attribute=make_lambda(method), **{"readonly": True, **additional_field_info}
             )
             if additional_field_info.get("show_as_ref", False):
-                ref_fields[key] = read_fields[method_name]
+                ref_fields[method_name] = read_fields[method_name]
 
         cls.__read_fields__ = api.model(f"{cls.__name__} (read)", read_fields, **kwargs)
         cls.__write_fields__ = api.model(f"{cls.__name__} (write)", write_fields, **kwargs)
@@ -414,7 +415,7 @@ def generate_fields(**kwargs) -> Callable:
 
         cls.__index_parser__ = parser
 
-        def apply_sort_filters_and_pagination(base_query) -> DBPaginator:
+        def apply_sort_filters(base_query) -> UDataQuerySet:
             args = cls.__index_parser__.parse_args()
 
             if sortables and args["sort"]:
@@ -445,7 +446,7 @@ def generate_fields(**kwargs) -> Callable:
                         if constraint == "objectid" and not ObjectId.is_valid(
                             args[filterable["key"]]
                         ):
-                            api.abort(400, f'`{filterable["key"]}` must be an identifier')
+                            api.abort(400, f"`{filterable['key']}` must be an identifier")
 
                     query = filterable.get("query", None)
                     if query:
@@ -457,12 +458,17 @@ def generate_fields(**kwargs) -> Callable:
                             }
                         )
 
-            if paginable:
-                base_query = base_query.paginate(args["page"], args["page_size"])
-
             return base_query
 
-        cls.apply_sort_filters_and_pagination = apply_sort_filters_and_pagination
+        def apply_pagination(base_query) -> DBPaginator:
+            args = cls.__index_parser__.parse_args()
+
+            if paginable:
+                base_query = base_query.paginate(args["page"], args["page_size"])
+            return base_query
+
+        cls.apply_sort_filters = apply_sort_filters
+        cls.apply_pagination = apply_pagination
         cls.__additional_class_info__ = kwargs
         return cls
 
@@ -528,15 +534,35 @@ def patch(obj, request) -> type:
 
             info = getattr(model_attribute, "__additional_field_info__", {})
 
-            # `check` field attribute allows to do validation from the request before setting
+            # `checks` field attribute allows to do validation from the request before setting
             # the attribute
-            check = info.get("check", None)
-            if check is not None and value != getattr(obj, key):
-                check(**{key: value})  # TODO add other model attributes in function parameters
+            checks = info.get("checks", [])
+
+            if is_value_modified(getattr(obj, key), value):
+                for check in checks:
+                    check(
+                        value,
+                        **{
+                            "is_creation": obj._created,
+                            "is_update": not obj._created,
+                            "field": key,
+                        },
+                    )  # TODO add other model attributes in function parameters
 
             setattr(obj, key, value)
 
     return obj
+
+
+def is_value_modified(old_value, new_value) -> bool:
+    # If we want to modify a reference, the new_value may be a DBRef.
+    # `wrap_primary_key` can also return the `foreign_document` (see :WrapToForeignDocument)
+    # and it is not currently taken into account here…
+    # Maybe we can do another type of check to check if the reference changes in the future…
+    if isinstance(new_value, DBRef):
+        return not old_value or new_value.id != old_value.id
+
+    return new_value != old_value
 
 
 def patch_and_save(obj, request) -> type:
@@ -581,6 +607,7 @@ def wrap_primary_key(
         raise FieldValidationError(field=field_name, message=f"Unknown reference '{value}'")
 
     # GenericReferenceField only accepts document (not dbref / objectid)
+    # :WrapToForeignDocument
     if isinstance(
         foreign_field,
         (
