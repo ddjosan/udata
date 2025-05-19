@@ -229,7 +229,7 @@ msgstr "Име"
 
 #: udata/core/contact_point/forms.py:15 udata/core/user/forms.py:21
 msgid "Email"
-msgstr "Имејл"
+msgstr "Електронска пошта"
 
 #: udata/core/contact_point/forms.py:17
 msgid "Contact form"
@@ -718,7 +718,7 @@ msgstr ""
 
 #: udata/core/organization/models.py:35
 msgid "Public Service"
-msgstr "Јавни сервис"
+msgstr "Орган јавне власти"
 
 #: udata/core/organization/models.py:36
 msgid "Certified"
@@ -726,7 +726,7 @@ msgstr "Сертификовано"
 
 #: udata/core/organization/models.py:37
 msgid "Association"
-msgstr ""
+msgstr "Удружење"
 
 #: udata/core/organization/models.py:38
 msgid "Company"
@@ -734,7 +734,7 @@ msgstr "Компанија"
 
 #: udata/core/organization/models.py:39
 msgid "Local authority"
-msgstr ""
+msgstr "Јединица локалне самоуправе"
 
 #: udata/core/organization/tasks.py:52
 msgid "New membership request"
@@ -2337,8 +2337,8 @@ msgid "Created date asc"
 msgstr "Креирано навише"
 
 #: udata_front/theme/govrs/templates/organization/list.html:42
-msgid "Created date desc"
-msgstr "Креирано наниже"
+msgid "Created date"
+msgstr "Датум креирања"
 
 #: udata_front/theme/govrs/templates/organization/list.html:43
 msgid "Last modified asc"

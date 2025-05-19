@@ -588,9 +588,30 @@ msgstr "Prihvaćeno"
 msgid "Refused"
 msgstr "Odbijeno"
 
+#: udata/core/organization/models.py:35
+msgid "Public Service"
+msgstr "Organ javne vlasti"
+
+#: udata/core/organization/models.py:36
+msgid "Certified"
+msgstr "Sertifikovano"
+
+#: udata/core/organization/models.py:37
+msgid "Association"
+msgstr "Udruženje"
+
+#: udata/core/organization/models.py:38
+msgid "Company"
+msgstr "Kompanija"
+
+#: udata/core/organization/models.py:39
+msgid "Local authority"
+msgstr "Jedinica lokalne samouprave"
+
+
 #: udata/core/organization/models.py:130
 msgid "Public Service"
-msgstr "Javni servis"
+msgstr "Organ javne vlasti"
 
 #: udata/core/organization/models.py:131
 msgid "Certified"
@@ -947,7 +968,7 @@ msgstr "prati primer upotrebe"
 
 #: udata/core/user/forms.py:18
 msgid "Email"
-msgstr "Imejl"
+msgstr "Elektronska pošta"
 
 #: udata/core/user/forms.py:19
 msgid "Avatar"
@@ -2275,8 +2296,8 @@ msgid "Created date asc"
 msgstr "Kreirano naviše"
 
 #: udata_front/theme/govrs/templates/organization/list.html:42
-msgid "Created date desc"
-msgstr "Kreirano naniže"
+msgid "Created date"
+msgstr "Datum kreiranja"
 
 #: udata_front/theme/govrs/templates/organization/list.html:43
 msgid "Last modified asc"
