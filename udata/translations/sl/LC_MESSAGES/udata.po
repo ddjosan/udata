@@ -1518,8 +1518,8 @@ msgid "Obrazovanje"
 msgstr "Obrazovanje"
 
 #: udata_front/theme/govrs/templates/home.html:73
-msgid "Energetika"
-msgstr "Energetika"
+msgid "Ranjive grupe"
+msgstr "Ranjive grupe"
 
 #: udata_front/theme/govrs/templates/home.html:81
 msgid "Uprava"

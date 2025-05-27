@@ -1714,8 +1714,8 @@ msgid "Obrazovanje"
 msgstr "Образовање"
 
 #: udata_front/theme/govrs/templates/home.html:73
-msgid "Energetika"
-msgstr "Енергетика"
+msgid "Ranjive grupe"
+msgstr "Рањиве групе"
 
 #: udata_front/theme/govrs/templates/home.html:81
 msgid "Uprava"
