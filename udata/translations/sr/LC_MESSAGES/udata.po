@@ -2384,7 +2384,7 @@ msgstr "Организација укупно"
 #: udata_front/theme/govrs/templates/participez/participez.html:5
 #: udata_front/theme/govrs/templates/reuse/display.html:180
 msgid "Participate new"
-msgstr "Укључите се у све отворених података"
+msgstr "Укључите се у свет отворених података"
 
 #: udata_front/theme/govrs/templates/participez/participez.html:36
 #: udata_front/theme/govrs/templates/participez/participez.html:42
