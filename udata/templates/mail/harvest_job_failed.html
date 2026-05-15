@@ -1,0 +1,37 @@
+{% extends "mail/base.html" %}
+
+{% block content %}
+<h1>Harvest Job Failed</h1>
+
+<p>A harvest job for source "{{ source.name }}" has failed.</p>
+
+<h2>Job Details</h2>
+<ul>
+    <li><strong>Started:</strong> {{ job.started }}</li>
+    <li><strong>Ended:</strong> {{ job.ended }}</li>
+    <li><strong>Source URL:</strong> <a href="{{ source.url }}">{{ source.url }}</a></li>
+    <li><strong>Backend:</strong> {{ source.backend }}</li>
+</ul>
+
+<h2>Error Details</h2>
+{% for error in error_details %}
+<div class="error">
+    <h3>Error #{{ loop.index }}</h3>
+    <ul>
+        <li><strong>Message:</strong> {{ error.message }}</li>
+        <li><strong>Created at:</strong> {{ error.created_at }}</li>
+    </ul>
+    {% if error.details %}
+    <div class="error-details">
+        <pre>{{ error.details }}</pre>
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+
+<p>
+    <a href="{{ url_for('harvest.job', ident=job.id, _external=True) }}" class="button">
+        View Full Job Details
+    </a>
+</p>
+{% endblock %} 

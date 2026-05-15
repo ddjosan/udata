@@ -1,0 +1,24 @@
+{% extends "mail/base.txt" %}
+
+{% block content %}
+A harvest job for source "{{ source.name }}" has failed.
+
+Job details:
+- Started: {{ job.started }}
+- Ended: {{ job.ended }}
+- Source URL: {{ source.url }}
+- Backend: {{ source.backend }}
+
+Error details:
+{% for error in error_details %}
+Error #{{ loop.index }}:
+- Message: {{ error.message }}
+- Created at: {{ error.created_at }}
+{% if error.details %}
+- Details:
+{{ error.details }}
+{% endif %}
+{% endfor %}
+
+You can view the full job details at: {{ url_for('harvest.job', ident=job.id, _external=True) }}
+{% endblock %} 
