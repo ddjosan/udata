@@ -1,6 +1,7 @@
 import logging
 
 import slugify
+from slugify import slugify_unicode, Slugify
 from flask_mongoengine import Document
 from mongoengine.fields import StringField
 from mongoengine.signals import post_delete, pre_save
@@ -11,6 +12,32 @@ from .queryset import UDataQuerySet
 
 log = logging.getLogger(__name__)
 
+# Serbian character mapping for proper transliteration (Latin + Cyrillic)
+SERBIAN_MAP = {
+    # Latin script - special characters
+    # Lowercase
+    'č': 'c', 'ć': 'c', 'đ': 'd', 'š': 's', 'ž': 'z',
+    # Uppercase  
+    'Č': 'C', 'Ć': 'C', 'Đ': 'D', 'Š': 'S', 'Ž': 'Z',
+    
+    # Cyrillic script - all characters
+    # Lowercase
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ж': 'z', 'з': 'z',
+    'и': 'i', 'ј': 'j', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p',
+    'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'c',
+    # Serbian specific Cyrillic characters
+    'ћ': 'c', 'ч': 'c', 'ђ': 'dj', 'ш': 's', 'љ': 'lj', 'њ': 'nj', 'џ': 'dz',
+    # Uppercase
+    'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ж': 'Z', 'З': 'Z',
+    'И': 'I', 'Ј': 'J', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N', 'О': 'O', 'П': 'P',
+    'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U', 'Ф': 'F', 'Х': 'H', 'Ц': 'C',
+    # Serbian specific Cyrillic characters
+    'Ћ': 'C', 'Ч': 'C', 'Ђ': 'Dj', 'Ш': 'S', 'Љ': 'Lj', 'Њ': 'Nj', 'Џ': 'Dz',
+}
+
+# Create a custom slugifier with Serbian transliteration
+# translate=None disables unidecode to prevent unwanted h→kh conversions
+serbian_slugify = Slugify(pretranslate=SERBIAN_MAP, translate=None)
 
 class SlugField(StringField):
     """
@@ -69,13 +96,17 @@ class SlugField(StringField):
 
     def slugify(self, value):
         """
-        Apply slugification according to specified field rules
+        Apply slugification according to specified field rules with Serbian character transliteration
         """
         if value is None:
             return
 
-        return slugify.slugify(
-            value, max_length=self.max_length, separator=self.separator, to_lower=self.lower_case
+        # Use Serbian slugifier for proper transliteration (č→c, ž→z, etc.)
+        return serbian_slugify(
+            value, 
+            max_length=self.max_length, 
+            separator=self.separator, 
+            to_lower=self.lower_case
         )
 
     def latest(self, value):
