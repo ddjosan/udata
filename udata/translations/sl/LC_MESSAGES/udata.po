@@ -1539,7 +1539,7 @@ msgstr "Ciljevi održivog razvoja"
 
 #: udata_front/theme/govrs/templates/home.html:132
 msgid "Datasets paragraph"
-msgstr "Kompletni, ažurni i izvorni podaci kojima svako može slobodno pristupiti, koristiti i deliti."
+msgstr "Kompletni, ažurni i izvorni podaci, dostupni svima za slobodan pristup, korišćenje i deljenje. Za tačnost, potpunost, blagovremenost i kvalitet podataka isključivo su odgovorni subjekti koji podatke dostavljaju i koji su njihovi vlasnici."
 
 #: udata_front/theme/govrs/templates/home.html:180
 msgid "Data reuses paragraph"
