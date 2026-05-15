@@ -1,9 +1,12 @@
 from flask import current_app
 
-from udata.tasks import get_logger, job, task
+from udata.tasks import get_logger, job, task, connect
+from udata import mail
+from udata.i18n import lazy_gettext as _
 
 from . import backends
 from .models import HarvestJob, HarvestSource
+from .signals import harvest_job_failed
 
 log = get_logger(__name__)
 
@@ -59,3 +62,39 @@ def purge_harvest_jobs(self):
     from .actions import purge_jobs
 
     purge_jobs()
+
+
+@connect(harvest_job_failed, by_id=True)
+def notify_harvest_job_failed(job_id):
+    """Send email notification when a harvest job fails"""
+    job = HarvestJob.objects.get(pk=job_id)
+    source = job.source
+    
+    # Get recipients - organization members if source belongs to an org, otherwise the owner
+    if source.organization:
+        recipients = [m.user for m in source.organization.members]
+    elif source.owner:
+        recipients = [source.owner]
+    else:
+        log.warning(f"No recipients found for failed harvest job {job_id}")
+        return
+
+    subject = _('Harvest job failed for source "%(name)s"', name=source.name)
+    
+    # Prepare error details
+    error_details = []
+    for error in job.errors:
+        error_details.append({
+            'message': error.message,
+            'details': error.details,
+            'created_at': error.created_at
+        })
+    
+    mail.send(
+        subject,
+        recipients,
+        "harvest_job_failed",
+        job=job,
+        source=source,
+        error_details=error_details
+    )
