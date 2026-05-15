@@ -36,8 +36,8 @@ def topic_search_for(topic, adapter, **kwargs):
             
         # Map sort field to actual field in database
         sort_mapping = {
-            'created': 'created_at',
-            'last_modified': 'last_modified',
+            'created': 'created_at_internal',
+            'last_modified': 'last_modified_internal',
             'title': 'title',
             'followers': 'metrics.followers',
             'views': 'metrics.views',
