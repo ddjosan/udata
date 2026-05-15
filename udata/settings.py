@@ -247,7 +247,7 @@ class Defaults(object):
     # LICENSE_GROUPS = [
     #     ("Autorités administratives", [
     #         {"value": "lov2", "recommended": True, "description": "Recommandée", "code": "etalab-2.0"},
-    #         {"value": "notspecified", "description": "Le Code des relations entre le public et l’administration ne s’applique pas"}]),
+    #         {"value": "notspecified", "description": "Le Code des relations entre le public et l'administration ne s'applique pas"}]),
     #     ("Tous producteurs", [
     #         {"value": "lov2", "recommended": True, "description": "Recommandée"},
     #         {"value": "cc-by", "code": "CC-BY"},
@@ -603,6 +603,10 @@ class Defaults(object):
     # JSON-LD settings
     ###########################################################################
     MAX_RESOURCES_IN_JSON_LD = 20
+
+    # CSV Export API Key for protected endpoints
+    ############################################
+    CSV_EXPORT_API_KEY = None
 
 
 class Testing(object):

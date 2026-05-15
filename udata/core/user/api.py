@@ -1,5 +1,6 @@
 from typing import Optional
 
+from flask import current_app, request
 from flask_security import current_user, logout_user
 from slugify import slugify
 
@@ -16,6 +17,7 @@ from udata.core.storages.api import (
     uploaded_image_fields,
 )
 from udata.core.user.models import Role
+from udata.frontend import csv
 from udata.models import CommunityResource, Dataset, Reuse, User
 
 from .api_fields import (
@@ -27,6 +29,7 @@ from .api_fields import (
     user_role_fields,
     user_suggestion_fields,
 )
+from .csv import UserCsvAdapter
 from .forms import UserProfileAdminForm, UserProfileForm
 
 DEFAULT_SORTING = "-created_at"
@@ -422,3 +425,43 @@ class UserRolesAPI(API):
     def get(self):
         """List all possible user roles"""
         return [{"name": role.name} for role in Role.objects()]
+
+
+def csv_api_key_required(f):
+    """Decorator to require CSV API key authentication"""
+    from functools import wraps
+    
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        api_key = request.headers.get('api-key') or request.args.get('api-key')
+        configured_key = current_app.config.get('CSV_EXPORT_API_KEY')
+        
+        if not configured_key:
+            api.abort(503, "CSV export API key not configured")
+        
+        if not api_key or api_key != configured_key:
+            api.abort(401, "Invalid or missing API key")
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@ns.route("/export.csv", endpoint="users_csv_export")
+class UsersCSVExportAPI(API):
+    @csv_api_key_required
+    @api.doc("export_active_users_csv", security=[])
+    @api.response(200, "CSV file of active users")
+    @api.response(401, "Invalid or missing API key")
+    @api.response(503, "CSV export API key not configured")
+    def get(self):
+        """Export all active users as CSV
+        
+        This endpoint requires an API key provided via X-API-KEY header or api-key query parameter.
+        The API key must match the CSV_EXPORT_API_KEY configuration value.
+        """
+        # Get all active (non-deleted) users
+        active_users = User.objects(active=True, deleted=None)
+        
+        # Use the UserCsvAdapter to generate CSV
+        adapter = UserCsvAdapter(active_users)
+        return csv.stream(adapter, "active-users")
