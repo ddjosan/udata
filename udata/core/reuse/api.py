@@ -106,13 +106,16 @@ reuse_parser = ReuseApiParser()
 @ns.route("/", endpoint="reuses")
 class ReuseListAPI(API):
     @api.doc("list_reuses")
-    @api.expect(Reuse.__index_parser__)
+    @api.expect(reuse_parser.parser)
     @api.marshal_with(Reuse.__page_fields__)
     def get(self):
-        query = Reuse.objects.visible_by_user(
+        args = reuse_parser.parse()
+        reuses = Reuse.objects.visible_by_user(
             current_user, mongoengine.Q(private__ne=True, deleted=None)
         )
-        return Reuse.apply_pagination(Reuse.apply_sort_filters(query))
+        reuses = reuse_parser.parse_filters(reuses, args)
+        sort = args["sort"] or ("$text_score" if args["q"] else None) or DEFAULT_SORTING
+        return reuses.order_by(sort).paginate(args["page"], args["page_size"])
 
     @api.secure
     @api.doc("create_reuse")
