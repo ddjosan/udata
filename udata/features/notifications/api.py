@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from udata.api import API, api, fields
 from udata.auth import current_user
 
@@ -28,3 +30,12 @@ class NotificationsAPI(API):
         """List all current user pending notifications"""
         user = current_user._get_current_object()
         return get_notifications(user)
+
+    @api.secure
+    @api.doc("clear_notifications")
+    def delete(self):
+        """Dismiss all current notifications for the current user"""
+        user = current_user._get_current_object()
+        user.notifications_dismissed_until = datetime.utcnow()
+        user.save()
+        return "", 204

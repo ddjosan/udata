@@ -28,10 +28,12 @@ def notifier(name):
 def get_notifications(user):
     """List notification for a given user"""
     notifications = []
+    dismissed_until = user.notifications_dismissed_until
 
     for name, func in _providers.items():
-        notifications.extend(
-            [{"type": name, "created_on": dt, "details": details} for dt, details in func(user)]
-        )
+        for dt, details in func(user):
+            if dismissed_until and dt <= dismissed_until:
+                continue
+            notifications.append({"type": name, "created_on": dt, "details": details})
 
     return notifications

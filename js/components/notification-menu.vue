@@ -15,6 +15,9 @@
                 </li>
             </ul>
         </li>
+        <li v-if="notifications.length > 0" class="footer text-center">
+            <a href="#" @click.prevent="clearAll" v-i18n="Clear all"></a>
+        </li>
     </ul>
 </li>
 </template>
@@ -49,6 +52,11 @@ export default {
         fetch() {
             API.notifications.get_notifications({}, (response) => {
                 this.notifications = response.obj;
+            });
+        },
+        clearAll() {
+            API.notifications.clear_notifications({}, () => {
+                this.notifications = [];
             });
         }
     }

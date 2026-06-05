@@ -86,6 +86,8 @@ class User(WithMetrics, UserMixin, db.Document):
     # when YEARS_OF_INACTIVITY_BEFORE_DELETION is set
     inactive_deletion_notified_at = db.DateTimeField()
 
+    notifications_dismissed_until = db.DateTimeField()
+
     before_save = Signal()
     after_save = Signal()
     on_create = Signal()

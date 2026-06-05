@@ -15,14 +15,6 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from udata import cors, entrypoints
 
-from flask_security import Security, SQLAlchemyUserDatastore, user_registered
-from flask_login import user_logged_in, current_user, LoginManager
-
-from flask_login import LoginManager
-
-
-login_manager = LoginManager()
-
 APP_NAME = __name__.split(".")[0]
 ROOT_DIR = abspath(join(dirname(__file__)))
 
@@ -191,28 +183,6 @@ def create_app(config="udata.settings.Defaults", override=None, init_logging=ini
     init_logging(app)
     register_extensions(app)
     
-    #from udata.core.user.models import init_security
-    #init_security(app)
-    
-    login_manager.init_app(app)
-    
-    @login_manager.user_loader
-    def load_user(user_id):
-        print(f"Loading user with ID: {user_id}")
-        from udata.core.user.models import User
-        return User.objects(id=user_id).first()
-    
-    @user_logged_in.connect_via(app)
-    def when_user_logged_in(sender, user):
-        print(f"User {user.email} has logged in and is_authenticated {current_user.is_authenticated} and user_id {user.get_id()}")
-        from flask import session
-        print(f"Session after login: {dict(session)}")
-        
-    @app.route('/debug_session_app', methods=['GET'])
-    def debug_session_app():
-        from flask import session
-        return {'session': dict(session)}                
-
     return app
 
 def standalone(app):
