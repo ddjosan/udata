@@ -103,7 +103,7 @@ export default {
 
             API[this.$options.ns][this.$options.endpoint]({
                 q: query,
-                size: 10
+                size: this.$options.size || 10
             }, (data) => {
                 var content = data.obj;
                 if (this.$options.dataLoaded) {

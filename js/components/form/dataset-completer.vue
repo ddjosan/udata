@@ -32,6 +32,7 @@ export default {
     mixins: [BaseCompleter],
     ns: 'datasets',
     endpoint: 'suggest_datasets',
+    size: 50,
     props: {
         placeholder: {
             type: String,
